@@ -19,6 +19,7 @@ const ROUTES = [
   "/schedule/calendar",
   "/schedule/optimization",
   "/members/directory",
+  "/members/m1", // dynamic member profile
   "/members/segments",
   "/corporate",
   "/revenue/overview",

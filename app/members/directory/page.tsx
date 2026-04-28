@@ -224,7 +224,11 @@ export default async function MembersDirectoryPage() {
                     style={{ borderBottom: "1px solid var(--border)" }}
                   >
                     <td style={{ padding: "12px 14px" }}>
-                      <div className="row" style={{ gap: 10 }}>
+                      <Link
+                        href={`/members/${m.id}`}
+                        className="row hov"
+                        style={{ gap: 10, textDecoration: "none", color: "inherit" }}
+                      >
                         <Avatar name={m.name} seed={m.seed} size={28} />
                         <div>
                           <div style={{ fontSize: 13, fontWeight: 600 }}>
@@ -237,7 +241,7 @@ export default async function MembersDirectoryPage() {
                             {m.email}
                           </div>
                         </div>
-                      </div>
+                      </Link>
                     </td>
                     <td style={{ padding: "12px 14px", fontSize: 12.5 }}>
                       {m.tier}

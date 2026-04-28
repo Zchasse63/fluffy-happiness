@@ -103,7 +103,7 @@ export function Sidebar({ onOpenCmdK }: { onOpenCmdK: () => void }) {
                 {hasChildren ? (
                   <button
                     type="button"
-                    className={`nav-item ${parentActive ? "" : ""} ${
+                    className={`nav-item ${parentActive ? "active" : ""} ${
                       isOpen ? "open" : ""
                     }`}
                     onClick={() =>
