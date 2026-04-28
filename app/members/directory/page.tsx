@@ -13,9 +13,9 @@ import {
   PageHero,
   SectionHead,
 } from "@/components/primitives";
+import { listMembers } from "@/lib/data/members";
 import {
   ENGAGEMENT_TONE,
-  MEMBERS,
   SEGMENTS,
   type Member,
 } from "@/lib/fixtures";
@@ -36,7 +36,8 @@ function StatusPill({ status }: { status: Member["status"] }) {
   );
 }
 
-export default function MembersDirectoryPage() {
+export default async function MembersDirectoryPage() {
+  const members = await listMembers();
   return (
     <>
       <PageHero
@@ -215,7 +216,7 @@ export default function MembersDirectoryPage() {
               </tr>
             </thead>
             <tbody>
-              {MEMBERS.map((m) => {
+              {members.map((m) => {
                 const tone = ENGAGEMENT_TONE[m.engagement];
                 return (
                   <tr
