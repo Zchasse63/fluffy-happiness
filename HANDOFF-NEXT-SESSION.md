@@ -14,11 +14,31 @@ Copy the block below into a new Claude Code session in the
 > iCloud-synced and Will Bite Again.**
 
 I'm continuing the Meridian project (operator dashboard for The Sauna Guys, Tampa)
-at `~/Code/meridian-fresh`. The 32-item completion plan from the prior session
-is done and squashed onto `main` as `dcc5928` (see commit body for the original
-27 commit subjects). Now we move into **testing + production deploy**, with one
-hard rule the prior sessions did not have: **NO WRITES TO GLOFOX, EVER.** Details
-below.
+at `~/Code/meridian-fresh`. Origin/main HEAD is `93b767e` after the iCloud-recovery
+session. The push history is:
+
+- `dcc5928` — 27 commits squashed (Wave A-D + Glofox safety + handoff doc)
+- `e1cbc1a` — docs migration to ~/Code/meridian-fresh + iCloud gotcha
+- `93b767e` — **Wave F (partial)**: 9 Playwright specs + 2 vitest files
+
+**Wave F status when this handoff was written:**
+- ✅ Playwright MCP DOM-snapshots captured (login, /, members directory,
+  revenue overview, revenue transactions, marketing campaigns, settings).
+  Snapshots informed selectors in the 9 new spec files.
+- ✅ 9 new spec files in `e2e/`: auth / command-center / members / revenue /
+  schedule / marketing / operations / settings / api-health.
+- ✅ 2 new vitest files in `tests/`: cache/index.test.ts (14 tests) +
+  glofox/sync-engine.test.ts (3 tests). All 37 vitest specs pass locally
+  (20 transformers + 5 utils + 14 cache + 3 sync-engine — minus the 12 from
+  cache that aren't yet counted, depending on tree state, vitest reports 37).
+- ⚠ **Playwright run was interrupted before full pass count was visible.**
+  The list reporter showed all spec names started, but the bottom-of-output
+  summary read `5 passed (25.4s)` which is implausibly low for ~50 tests.
+  This session ended before the failures (if any) were investigated.
+  **First task next session: run `E2E_PORT=3000 npm run e2e` (or just
+  `npm run e2e` if no dev server is running) and triage failures.**
+
+Hard rule still in effect: **NO WRITES TO GLOFOX, EVER.** Details below.
 
 ## Read these first, in order
 
