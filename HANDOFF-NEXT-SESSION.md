@@ -1,15 +1,24 @@
 # Meridian — fresh session kickoff prompt
 
 Copy the block below into a new Claude Code session in the
-`/Users/zach/Desktop/TSG Fresh` directory.
+`~/Code/meridian-fresh` directory.
 
----
+> **Important — directory migration (2026-04-29):** The project lived at
+> `/Users/zach/Desktop/TSG Fresh/meridian` until the iCloud "Optimize Mac
+> Storage" feature evicted ~21% of `.git/objects/*` to iCloud and the local
+> file-provider daemon (`bird`) wedged. `git push` deadlocked indefinitely
+> on `pack-objects`. Recovery: fresh clone of origin/main into
+> `~/Code/meridian-fresh` (non-iCloud), squash-commit of the working tree
+> as `dcc5928`, push. The Desktop directory has been deleted. **Do not
+> ever put this project under `~/Desktop` or `~/Documents` — those are
+> iCloud-synced and Will Bite Again.**
 
 I'm continuing the Meridian project (operator dashboard for The Sauna Guys, Tampa)
-at `/Users/zach/Desktop/TSG Fresh/meridian`. The 32-item completion plan from
-the prior session is done — 26 commits sit on `main` locally. Now we move into
-**testing + production deploy**, with one hard rule the prior sessions did not
-have: **NO WRITES TO GLOFOX, EVER.** Details below.
+at `~/Code/meridian-fresh`. The 32-item completion plan from the prior session
+is done and squashed onto `main` as `dcc5928` (see commit body for the original
+27 commit subjects). Now we move into **testing + production deploy**, with one
+hard rule the prior sessions did not have: **NO WRITES TO GLOFOX, EVER.** Details
+below.
 
 ## Read these first, in order
 
@@ -62,7 +71,7 @@ have: **NO WRITES TO GLOFOX, EVER.** Details below.
 ## Dev server (already configured to work)
 
 ```bash
-cd "/Users/zach/Desktop/TSG Fresh/meridian"
+cd ~/Code/meridian-fresh
 npm run dev   # auto-strips parent-shell ANTHROPIC_API_KEY="" via env -u
 ```
 
@@ -269,7 +278,7 @@ write method has to update it.
 
 ## How to start
 
-1. `cd "/Users/zach/Desktop/TSG Fresh/meridian"`
+1. `cd ~/Code/meridian-fresh`
 2. Read `CLAUDE.md`, `DEFERRED.md`, `RELEASE-NOTES.md` (in that order).
 3. `git status` and `git log --oneline -10` — confirm you're on the right
    commit and the 26 commits ahead of `origin/main`.

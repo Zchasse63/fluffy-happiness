@@ -174,6 +174,17 @@ npx supabase gen types typescript --project-id ptgeijftzfykjbiujvty \
 
 ### Gotchas
 
+- **NEVER put this project under `~/Desktop` or `~/Documents`.** Both are
+  iCloud-synced by default. macOS's "Optimize Mac Storage" evicts inactive
+  files (including `.git/objects/*`) to iCloud and marks them `dataless`.
+  When `git pack-objects` walks history during a push, every dataless
+  object blocks waiting on `bird`/`cloudd` to fault in the bytes — and
+  the daemon wedges easily under churn from `.next` and `node_modules`.
+  We migrated from `~/Desktop/TSG Fresh/meridian` to `~/Code/meridian-fresh`
+  on 2026-04-29 after a multi-hour deadlock; the original 27-commit
+  history was lost (squashed to `dcc5928`) when the dataless objects
+  could not be recovered. **The repo lives at `~/Code/meridian-fresh`
+  and must stay outside iCloud-synced paths.**
 - **The `block-dangerous-git.py` hook** referenced in `~/.claude/hooks/` is
   missing. Hooks fail non-blocking but spam stderr. Safe to ignore but
   noisy.
