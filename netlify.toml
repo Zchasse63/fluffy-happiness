@@ -1,0 +1,39 @@
+[build]
+command = "npm run build"
+publish = ".next"
+
+[build.environment]
+NODE_VERSION = "22"
+NEXT_TELEMETRY_DISABLED = "1"
+
+# Netlify Pro caps function timeout at 26s by default; the Glofox sync
+# route can run longer than that during a full backfill. Bump it.
+[functions."api/glofox/sync"]
+max_duration = 300
+
+# AI briefing can be slow on first call (Anthropic + multi-table query).
+[functions."api/ai/briefing"]
+max_duration = 60
+
+[functions."api/ai/ask"]
+max_duration = 60
+
+# Inngest registration handler — short by design.
+[functions."api/inngest"]
+max_duration = 30
+
+# Webhook handlers must respond fast to avoid retries.
+[functions."api/webhooks/stripe"]
+max_duration = 10
+
+[functions."api/webhooks/resend"]
+max_duration = 10
+
+# The Next.js plugin handles routing; no `[[redirects]]` needed.
+[[plugins]]
+package = "@netlify/plugin-nextjs"
+
+[dev]
+command = "npm run dev"
+port = 3000
+targetPort = 3000

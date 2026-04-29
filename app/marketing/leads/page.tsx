@@ -2,12 +2,18 @@
  * Marketing · Leads — kanban board (New → Contacted → Trial → Converted →
  * Lost). Cards show source, score, last touch, and assignee. Drag-and-drop
  * is deferred to dnd-kit (see DEFERRED.md).
+ *
+ * Live data via `loadLeads`; falls back to fixtures.
  */
+
+export const dynamic = "force-dynamic";
 
 import { Avatar } from "@/components/avatar";
 import { Icon } from "@/components/icon";
 import { PageHero } from "@/components/primitives";
-import { LEADS, type LeadStatus } from "@/lib/fixtures";
+import { ToneBadge } from "@/components/status-pill";
+import { loadLeads } from "@/lib/data/marketing";
+import { type LeadStatus } from "@/lib/fixtures";
 
 const COLUMNS: Array<{
   status: LeadStatus;
@@ -39,7 +45,8 @@ function scoreTone(score: number) {
   return { fg: "var(--neg)", soft: "var(--neg-soft)" };
 }
 
-export default function LeadsPage() {
+export default async function LeadsPage() {
+  const LEADS = await loadLeads();
   return (
     <>
       <PageHero
@@ -86,16 +93,9 @@ export default function LeadsPage() {
                   padding: "4px 4px 12px",
                 }}
               >
-                <span
-                  className="badge"
-                  style={{
-                    background: col.soft,
-                    color: col.fg,
-                    fontSize: 10.5,
-                  }}
-                >
+                <ToneBadge tone={col} style={{ fontSize: 10.5 }}>
                   {col.label}
-                </span>
+                </ToneBadge>
                 <span
                   className="mono text-3"
                   style={{
@@ -139,16 +139,9 @@ export default function LeadsPage() {
                             </div>
                           </div>
                         </div>
-                        <span
-                          className="badge"
-                          style={{
-                            background: tone.soft,
-                            color: tone.fg,
-                            fontSize: 10,
-                          }}
-                        >
+                        <ToneBadge tone={tone} style={{ fontSize: 10 }}>
                           {l.score}
-                        </span>
+                        </ToneBadge>
                       </div>
                       <div
                         className="row"

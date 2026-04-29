@@ -15,7 +15,7 @@ const Query = z.object({
 
 export async function GET(request: Request) {
   try {
-    await requireProfile();
+    const profile = await requireProfile();
     const url = new URL(request.url);
     const params = Query.parse(Object.fromEntries(url.searchParams));
     const supabase = await createSupabaseServer();
@@ -30,6 +30,7 @@ export async function GET(request: Request) {
       .select(
         "id, title, starts_at, ends_at, capacity, booked_count, waitlist_count, status, program_id, trainer_id, location_id",
       )
+      .eq("studio_id", profile.studio_id)
       .gte("starts_at", from)
       .lte("starts_at", to)
       .order("starts_at", { ascending: true });

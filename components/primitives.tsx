@@ -6,6 +6,8 @@
 
 import { Icon, type IconName } from "./icon";
 
+export { SearchBar } from "./search-bar";
+
 /* ───── ChangeBadge ────────────────────────────────────────────────── */
 
 export function ChangeBadge({ value }: { value: string }) {
@@ -185,6 +187,100 @@ export function Donut({
         </div>
       </div>
     </div>
+  );
+}
+
+/* ───── KpiCard (single 4-column strip cell) ──────────────────────── */
+
+export type KpiCardItem = {
+  label: string;
+  value: string;
+  delta: string;
+  foot: string;
+};
+
+export function KpiCard({
+  item,
+  borderRight = false,
+}: {
+  item: KpiCardItem;
+  borderRight?: boolean;
+}) {
+  return (
+    <div
+      style={{
+        padding: "20px 22px",
+        borderRight: borderRight ? "1px solid var(--border)" : "none",
+      }}
+    >
+      <div className="metric-label">{item.label}</div>
+      <div className="big" style={{ fontSize: 36, marginBottom: 8 }}>
+        {item.value}
+      </div>
+      <div className="row" style={{ gap: 8 }}>
+        <ChangeBadge value={item.delta} />
+        <span className="muted" style={{ fontSize: 11 }}>
+          {item.foot}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+export function KpiCardStrip({ items }: { items: KpiCardItem[] }) {
+  return (
+    <div className="card card-tight" style={{ overflow: "hidden" }}>
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: `repeat(${items.length}, 1fr)`,
+          alignItems: "stretch",
+        }}
+      >
+        {items.map((k, i) => (
+          <KpiCard
+            key={k.label}
+            item={k}
+            borderRight={i < items.length - 1}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ───── TableHead (mono uppercase column headers) ─────────────────── */
+
+export type TableColumn = { label: string; align?: "left" | "right" };
+
+export function TableHead({ columns }: { columns: TableColumn[] }) {
+  return (
+    <thead>
+      <tr
+        style={{
+          background: "var(--surface-2)",
+          borderBottom: "1px solid var(--border)",
+        }}
+      >
+        {columns.map((c) => (
+          <th
+            key={c.label}
+            style={{
+              textAlign: c.align ?? "left",
+              padding: "10px 14px",
+              fontFamily: "var(--mono)",
+              fontSize: 10,
+              letterSpacing: "0.12em",
+              textTransform: "uppercase",
+              color: "var(--text-3)",
+              fontWeight: 600,
+            }}
+          >
+            {c.label}
+          </th>
+        ))}
+      </tr>
+    </thead>
   );
 }
 

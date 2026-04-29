@@ -1,28 +1,50 @@
 /*
  * Revenue · Transactions — filterable transaction log with refund and
  * dispute action buttons. Negative amounts render as refunds.
+ *
+ * Live data via `loadTransactions`; falls back to fixtures when DB is
+ * empty.
  */
+
+export const dynamic = "force-dynamic";
 
 import { Avatar } from "@/components/avatar";
 import { Icon } from "@/components/icon";
-import { PageHero } from "@/components/primitives";
-import { TRANSACTIONS, type RevenueKind } from "@/lib/fixtures";
+import {
+  PageHero,
+  SearchBar,
+  TableHead,
+} from "@/components/primitives";
+import { ToneBadge } from "@/components/status-pill";
+import { TransactionActionButton } from "@/components/transaction-action-button";
+import { loadTransactions } from "@/lib/data/revenue";
+import { TRANSACTION_KIND_META } from "@/lib/fixtures";
 import { formatCurrency } from "@/lib/utils";
 
-const KIND_TONE: Record<RevenueKind, { fg: string; soft: string; label: string }> = {
-  membership: { fg: "var(--accent-deep)", soft: "var(--accent-soft)", label: "Membership" },
-  class_pack: { fg: "var(--teal)", soft: "var(--teal-soft)", label: "Pack" },
-  retail: { fg: "var(--cobalt)", soft: "var(--cobalt-soft)", label: "Retail" },
-  gift_card: { fg: "var(--gold)", soft: "var(--gold-soft)", label: "Gift card" },
-  walk_in: { fg: "var(--moss)", soft: "var(--moss-soft)", label: "Walk-in" },
-  corporate: { fg: "var(--plum)", soft: "var(--plum-soft)", label: "Corporate" },
-};
+const TABLE_COLUMNS = [
+  { label: "Time" },
+  { label: "Member" },
+  { label: "Description" },
+  { label: "Kind" },
+  { label: "Status" },
+  { label: "Amount", align: "right" as const },
+  { label: "", align: "right" as const },
+];
 
-export default function RevenueTransactionsPage() {
+export default async function RevenueTransactionsPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ q?: string }>;
+}) {
+  const params = (await searchParams) ?? {};
+  const search = params.q ?? "";
+
+  const txns = await loadTransactions({ limit: 100, search });
+
   return (
     <>
       <PageHero
-        meta="Last 14 days · Tampa"
+        meta={`${txns.length} most recent · Tampa`}
         title="Transactions"
         subtitle="Every payment, refund, and chargeback. Filter by kind, status, or date range."
         actions={
@@ -50,29 +72,7 @@ export default function RevenueTransactionsPage() {
             gap: 10,
           }}
         >
-          <div
-            className="row"
-            style={{
-              gap: 8,
-              background: "var(--surface-2)",
-              border: "1px solid var(--border)",
-              borderRadius: 9999,
-              padding: "6px 12px",
-              flex: 1,
-            }}
-          >
-            <Icon name="search" size={14} />
-            <input
-              placeholder="Search by member, amount, or txn id…"
-              style={{
-                flex: 1,
-                background: "transparent",
-                border: "none",
-                outline: "none",
-                fontSize: 13,
-              }}
-            />
-          </div>
+          <SearchBar placeholder="Search by member, amount, or txn id…" />
           <span className="tabs">
             <span className="tab active">All</span>
             <span className="tab">Completed</span>
@@ -81,44 +81,10 @@ export default function RevenueTransactionsPage() {
           </span>
         </div>
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
-          <thead>
-            <tr
-              style={{
-                background: "var(--surface-2)",
-                borderBottom: "1px solid var(--border)",
-              }}
-            >
-              {[
-                ["Time", "left"],
-                ["Member", "left"],
-                ["Description", "left"],
-                ["Kind", "left"],
-                ["Method", "left"],
-                ["Status", "left"],
-                ["Amount", "right"],
-                ["", "right"],
-              ].map(([label, align], i) => (
-                <th
-                  key={i}
-                  style={{
-                    textAlign: align as "left" | "right",
-                    padding: "10px 14px",
-                    fontFamily: "var(--mono)",
-                    fontSize: 10,
-                    letterSpacing: "0.12em",
-                    textTransform: "uppercase",
-                    color: "var(--text-3)",
-                    fontWeight: 600,
-                  }}
-                >
-                  {label}
-                </th>
-              ))}
-            </tr>
-          </thead>
+          <TableHead columns={TABLE_COLUMNS} />
           <tbody>
-            {TRANSACTIONS.map((t) => {
-              const tone = KIND_TONE[t.kind];
+            {txns.map((t) => {
+              const tone = TRANSACTION_KIND_META[t.kind];
               const refunded = t.status === "refunded";
               const failed = t.status === "failed";
               return (
@@ -149,18 +115,7 @@ export default function RevenueTransactionsPage() {
                     {t.description}
                   </td>
                   <td style={{ padding: "12px 14px" }}>
-                    <span
-                      className="badge"
-                      style={{ background: tone.soft, color: tone.fg }}
-                    >
-                      {tone.label}
-                    </span>
-                  </td>
-                  <td
-                    className="mono text-3"
-                    style={{ padding: "12px 14px", fontSize: 11.5 }}
-                  >
-                    {t.card}
+                    <ToneBadge tone={tone}>{tone.label}</ToneBadge>
                   </td>
                   <td style={{ padding: "12px 14px" }}>
                     <span
@@ -200,22 +155,10 @@ export default function RevenueTransactionsPage() {
                   </td>
                   <td style={{ padding: "12px 14px", textAlign: "right" }}>
                     {!refunded && !failed && (
-                      <button
-                        type="button"
-                        className="btn btn-ghost hov"
-                        style={{ height: 26, fontSize: 11.5 }}
-                      >
-                        Refund
-                      </button>
+                      <TransactionActionButton txnId={t.id} action="refund" />
                     )}
                     {failed && (
-                      <button
-                        type="button"
-                        className="btn btn-primary hov"
-                        style={{ height: 26, fontSize: 11.5 }}
-                      >
-                        Retry
-                      </button>
+                      <TransactionActionButton txnId={t.id} action="retry" />
                     )}
                   </td>
                 </tr>

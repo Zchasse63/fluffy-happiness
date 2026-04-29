@@ -42,3 +42,6 @@ next-env.d.ts
 # Supabase CLI artifacts
 supabase/.branches
 supabase/.temp
+
+# Codebase Cartographer audit artifacts (regenerated on demand)
+.audit/

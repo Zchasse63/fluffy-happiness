@@ -1,11 +1,19 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { Icon } from "@/components/icon";
 import { createSupabaseBrowser } from "@/lib/supabase/client";
 
 type Status = "idle" | "sending" | "sent" | "error";
+
+const URL_ERROR_COPY: Record<string, string> = {
+  not_authorized:
+    "That email isn't on the owner / manager allowlist. Ask an existing owner to invite you.",
+  missing_code: "The magic link was incomplete — request a new one.",
+  missing_email:
+    "We couldn't read the email on that magic link — try sending a new one.",
+};
 
 export function LoginForm({
   searchParams,
@@ -15,6 +23,19 @@ export function LoginForm({
   const [email, setEmail] = useState("");
   const [status, setStatus] = useState<Status>("idle");
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!searchParams) return;
+    let active = true;
+    void searchParams.then((p) => {
+      if (active && p.error) {
+        setError(URL_ERROR_COPY[p.error] ?? p.error);
+      }
+    });
+    return () => {
+      active = false;
+    };
+  }, [searchParams]);
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

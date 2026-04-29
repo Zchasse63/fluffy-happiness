@@ -2,15 +2,32 @@
  * Revenue · Memberships & Pricing — plan table with MRR contribution,
  * a one-shot pricing simulator (impact preview), and promo code
  * attribution.
+ *
+ * Live data via `loadMembershipPlans`; falls back to fixtures when DB
+ * is empty.
  */
 
+export const dynamic = "force-dynamic";
+
 import { Icon } from "@/components/icon";
-import { ChangeBadge, PageHero, SectionHead } from "@/components/primitives";
-import { PLANS } from "@/lib/fixtures";
+import { PageHero, SectionHead, TableHead } from "@/components/primitives";
+import { loadMembershipPlans } from "@/lib/data/revenue";
 import { formatCurrency } from "@/lib/utils";
 
-export default function RevenueMembershipsPage() {
-  const totalMrr = PLANS.reduce((s, p) => s + p.mrrCents, 0);
+const TABLE_COLUMNS = [
+  { label: "Plan" },
+  { label: "Tier" },
+  { label: "Price", align: "right" as const },
+  { label: "Active", align: "right" as const },
+  { label: "MRR", align: "right" as const },
+  { label: "Credits / cycle", align: "right" as const },
+  { label: "Guests", align: "right" as const },
+  { label: "Status" },
+];
+
+export default async function RevenueMembershipsPage() {
+  const plans = await loadMembershipPlans();
+  const totalMrr = plans.reduce((s, p) => s + p.mrrCents, 0);
 
   return (
     <>
@@ -19,10 +36,9 @@ export default function RevenueMembershipsPage() {
         title="Memberships & pricing"
         subtitle={
           <>
-            5 active plans contributing{" "}
-            <strong>{formatCurrency(totalMrr)}</strong> MRR. The legacy
-            Founders rate is grandfathered for 11 members and hidden from
-            new purchases.
+            {plans.length} plans contributing{" "}
+            <strong>{formatCurrency(totalMrr)}</strong> MRR. Legacy plans are
+            grandfathered for existing members and hidden from new purchases.
           </>
         }
         actions={
@@ -39,43 +55,9 @@ export default function RevenueMembershipsPage() {
 
       <div className="card" style={{ padding: 0, overflow: "hidden" }}>
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
-          <thead>
-            <tr
-              style={{
-                background: "var(--surface-2)",
-                borderBottom: "1px solid var(--border)",
-              }}
-            >
-              {[
-                ["Plan", "left"],
-                ["Tier", "left"],
-                ["Price", "right"],
-                ["Active", "right"],
-                ["MRR", "right"],
-                ["Credits / cycle", "right"],
-                ["Guests", "right"],
-                ["Status", "left"],
-              ].map(([label, align]) => (
-                <th
-                  key={label}
-                  style={{
-                    textAlign: align as "left" | "right",
-                    padding: "12px 16px",
-                    fontFamily: "var(--mono)",
-                    fontSize: 10,
-                    letterSpacing: "0.12em",
-                    textTransform: "uppercase",
-                    color: "var(--text-3)",
-                    fontWeight: 600,
-                  }}
-                >
-                  {label}
-                </th>
-              ))}
-            </tr>
-          </thead>
+          <TableHead columns={TABLE_COLUMNS} />
           <tbody>
-            {PLANS.map((p) => (
+            {plans.map((p) => (
               <tr
                 key={p.id}
                 style={{ borderBottom: "1px solid var(--border)" }}

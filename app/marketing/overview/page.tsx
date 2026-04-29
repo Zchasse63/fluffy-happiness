@@ -1,7 +1,12 @@
 /*
  * Marketing · Overview — campaign performance funnel, lead funnel,
  * scheduled campaigns, and active automation enrollments at a glance.
+ *
+ * Live data via `loadMarketingOverview` — falls back to fixtures only
+ * for the leaf datasets that are themselves empty.
  */
+
+export const dynamic = "force-dynamic";
 
 import Link from "next/link";
 
@@ -12,23 +17,15 @@ import {
   PageHero,
   SectionHead,
 } from "@/components/primitives";
-import { AUTOMATIONS, CAMPAIGNS, LEADS } from "@/lib/fixtures";
+import { loadMarketingOverview } from "@/lib/data/marketing-overview";
 
-export default function MarketingOverviewPage() {
-  const sentCampaigns = CAMPAIGNS.filter((c) => c.status === "sent");
-  const totalSent = sentCampaigns.reduce((s, c) => s + c.sent, 0);
-  const totalOpened = sentCampaigns.reduce((s, c) => s + c.opened, 0);
-  const totalClicked = sentCampaigns.reduce((s, c) => s + c.clicked, 0);
-  const totalConverted = sentCampaigns.reduce((s, c) => s + c.converted, 0);
-  const openRate = totalSent ? Math.round((totalOpened / totalSent) * 100) : 0;
-  const clickRate = totalSent
-    ? Math.round((totalClicked / totalSent) * 100)
-    : 0;
-
-  const leadsByStatus = LEADS.reduce<Record<string, number>>((acc, l) => {
-    acc[l.status] = (acc[l.status] || 0) + 1;
-    return acc;
-  }, {});
+export default async function MarketingOverviewPage() {
+  const overview = await loadMarketingOverview();
+  const { campaigns, leads, leadsByStatus, automations, totals } = overview;
+  const totalSent = totals.sent;
+  const totalConverted = totals.converted;
+  const openRate = totals.openRate;
+  const clickRate = totals.clickRate;
 
   return (
     <>
@@ -37,10 +34,10 @@ export default function MarketingOverviewPage() {
         title="Marketing"
         subtitle={
           <>
-            5 campaigns sent or in flight, 8 leads in the pipeline, 6 active
-            automations. Open rate is{" "}
-            <strong>{openRate}%</strong> — well above the studio benchmark of
-            32%.
+            {totals.sent.toLocaleString()} sent in the last 30 days,{" "}
+            {leads.length} leads in the pipeline,{" "}
+            {automations.filter((a) => a.status === "active").length} active
+            automations. Open rate is <strong>{openRate}%</strong>.
           </>
         }
         actions={
@@ -117,7 +114,7 @@ export default function MarketingOverviewPage() {
             Campaign performance
           </SectionHead>
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            {CAMPAIGNS.map((c) => {
+            {campaigns.map((c) => {
               const open = c.sent ? Math.round((c.opened / c.sent) * 100) : 0;
               const click = c.sent ? Math.round((c.clicked / c.sent) * 100) : 0;
               return (
@@ -201,7 +198,7 @@ export default function MarketingOverviewPage() {
           <div className="row" style={{ gap: 24, alignItems: "flex-start" }}>
             <Donut
               value={Math.round(
-                ((leadsByStatus.Converted ?? 0) / (LEADS.length || 1)) * 100,
+                ((leadsByStatus.Converted ?? 0) / (leads.length || 1)) * 100,
               )}
               color="var(--teal)"
               size={120}
@@ -260,7 +257,7 @@ export default function MarketingOverviewPage() {
             gap: 12,
           }}
         >
-          {AUTOMATIONS.slice(0, 6).map((a) => (
+          {automations.slice(0, 6).map((a) => (
             <div
               key={a.id}
               style={{

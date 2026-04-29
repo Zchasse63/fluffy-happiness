@@ -1,22 +1,29 @@
 /*
  * Operations · Staff — employee directory with role, status, and pay rate.
+ *
+ * Live data via `loadStaff`; falls back to fixtures when no profile rows
+ * have staff/trainer/owner/manager roles.
  */
+
+export const dynamic = "force-dynamic";
 
 import { Avatar } from "@/components/avatar";
 import { Icon } from "@/components/icon";
-import { PageHero } from "@/components/primitives";
-import { TRAINERS } from "@/lib/fixtures";
+import { PageHero, TableHead } from "@/components/primitives";
+import { loadStaff } from "@/lib/data/staff";
 
-const STAFF = [
-  { ...TRAINERS[0], role: "Lead trainer", status: "active" as const, base: "$65/class", bonus: "10% over 80% fill", classes30: 18 },
-  { ...TRAINERS[1], role: "Trainer", status: "active" as const, base: "$50/class", bonus: "10% over 80% fill", classes30: 16 },
-  { ...TRAINERS[2], role: "Cold plunge specialist", status: "active" as const, base: "$45/class", bonus: "—", classes30: 12 },
-  { ...TRAINERS[3], role: "Trainer · weekend", status: "active" as const, base: "$50/class", bonus: "10% over 80% fill", classes30: 8 },
-  { id: "alex", name: "Alex Rivera", seed: 42, role: "Front desk", status: "active" as const, base: "$22/hr", bonus: "—", classes30: 0 },
-  { id: "ren", name: "Ren Patel", seed: 17, role: "Front desk · weekends", status: "paused" as const, base: "$22/hr", bonus: "—", classes30: 0 },
+const TABLE_COLUMNS = [
+  { label: "Name" },
+  { label: "Role" },
+  { label: "Status" },
+  { label: "Base rate", align: "right" as const },
+  { label: "Bonus", align: "right" as const },
+  { label: "Classes · 30d", align: "right" as const },
 ];
 
-export default function StaffPage() {
+export default async function StaffPage() {
+  const STAFF = await loadStaff();
+
   return (
     <>
       <PageHero
@@ -37,39 +44,7 @@ export default function StaffPage() {
 
       <div className="card" style={{ padding: 0, overflow: "hidden" }}>
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
-          <thead>
-            <tr
-              style={{
-                background: "var(--surface-2)",
-                borderBottom: "1px solid var(--border)",
-              }}
-            >
-              {[
-                ["Name", "left"],
-                ["Role", "left"],
-                ["Status", "left"],
-                ["Base rate", "right"],
-                ["Bonus", "right"],
-                ["Classes · 30d", "right"],
-              ].map(([label, align], i) => (
-                <th
-                  key={i}
-                  style={{
-                    textAlign: align as "left" | "right",
-                    padding: "12px 16px",
-                    fontFamily: "var(--mono)",
-                    fontSize: 10,
-                    letterSpacing: "0.12em",
-                    textTransform: "uppercase",
-                    color: "var(--text-3)",
-                    fontWeight: 600,
-                  }}
-                >
-                  {label}
-                </th>
-              ))}
-            </tr>
-          </thead>
+          <TableHead columns={TABLE_COLUMNS} />
           <tbody>
             {STAFF.map((s) => (
               <tr key={s.id} style={{ borderBottom: "1px solid var(--border)" }}>

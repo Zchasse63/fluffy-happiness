@@ -1,32 +1,19 @@
 /*
- * Revenue · Retail — merchandise catalog with inventory + sales.
+ * Revenue · Retail — merchandise catalog with inventory + sales. Live
+ * from `retail_products` (added in 0013), with sold-30 sourced from a
+ * heuristic match against retail transactions. Falls back to fixture
+ * when no products are seeded.
  */
+
+export const dynamic = "force-dynamic";
 
 import { Icon } from "@/components/icon";
 import { PageHero } from "@/components/primitives";
+import { loadRetailProducts } from "@/lib/data/retail";
 import { formatCurrency } from "@/lib/utils";
 
-type Product = {
-  id: string;
-  name: string;
-  category: string;
-  priceCents: number;
-  inventory: number;
-  threshold: number;
-  sold30: number;
-  active: boolean;
-};
-
-const PRODUCTS: Product[] = [
-  { id: "r1", name: "Sauna towel · cotton", category: "Apparel", priceCents: 2400, inventory: 42, threshold: 12, sold30: 18, active: true },
-  { id: "r2", name: "Cold plunge thermal robe", category: "Apparel", priceCents: 8800, inventory: 8, threshold: 6, sold30: 11, active: true },
-  { id: "r3", name: "Sweat brush · birch", category: "Accessories", priceCents: 1800, inventory: 26, threshold: 10, sold30: 24, active: true },
-  { id: "r4", name: "Eucalyptus oil · 30ml", category: "Aromatherapy", priceCents: 1200, inventory: 4, threshold: 8, sold30: 41, active: true },
-  { id: "r5", name: "Cigar City Brewing collab tee", category: "Apparel", priceCents: 3200, inventory: 16, threshold: 8, sold30: 7, active: true },
-  { id: "r6", name: "Birch bundle · house steam", category: "Aromatherapy", priceCents: 900, inventory: 0, threshold: 12, sold30: 16, active: false },
-];
-
-export default function RetailPage() {
+export default async function RetailPage() {
+  const PRODUCTS = await loadRetailProducts();
   return (
     <>
       <PageHero

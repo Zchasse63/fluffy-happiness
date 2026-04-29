@@ -1,34 +1,104 @@
 /*
  * Revenue · Overview — daily/weekly/monthly chart, MRR gauge, revenue by
  * type breakdown, plus a Today and a 7-day strip.
+ *
+ * Live data via `loadRevenueOverview` and `loadDirectoryKpis` for MRR.
  */
+
+export const dynamic = "force-dynamic";
 
 import { Icon } from "@/components/icon";
 import {
-  ChangeBadge,
   Donut,
+  KpiCardStrip,
   LineChart,
   PageHero,
   SectionHead,
+  type KpiCardItem,
 } from "@/components/primitives";
+import { loadDirectoryKpis } from "@/lib/data/members";
+import { loadRevenueOverview } from "@/lib/data/revenue";
+import type { RevenueKind } from "@/lib/fixtures";
 import { formatCurrency } from "@/lib/utils";
 
-const DAILY_REVENUE = [
-  120, 180, 95, 220, 140, 260, 210, 280, 175, 210, 190, 240, 175, 250, 320,
-  290, 240, 285, 310, 240, 265, 320, 290, 305, 285, 268, 290, 234,
-];
+const KIND_LABEL: Record<RevenueKind, { label: string; color: string }> = {
+  membership: { label: "Memberships", color: "var(--accent)" },
+  class_pack: { label: "Class packs", color: "var(--teal)" },
+  retail: { label: "Retail", color: "var(--cobalt)" },
+  gift_card: { label: "Gift cards", color: "var(--gold)" },
+  walk_in: { label: "Walk-ins", color: "var(--moss)" },
+  corporate: { label: "Corporate", color: "var(--plum)" },
+};
 
-const REVENUE_TYPES: Array<{ label: string; value: number; color: string }> = [
-  { label: "Memberships", value: 36450, color: "var(--accent)" },
-  { label: "Class packs", value: 13860, color: "var(--teal)" },
-  { label: "Retail", value: 4200, color: "var(--cobalt)" },
-  { label: "Gift cards", value: 2400, color: "var(--gold)" },
-  { label: "Walk-ins", value: 980, color: "var(--moss)" },
-  { label: "Corporate", value: 5000, color: "var(--plum)" },
-];
+const VALID_WINDOWS = [7, 30, 90, 365] as const;
+type WindowDays = (typeof VALID_WINDOWS)[number];
 
-export default function RevenueOverviewPage() {
-  const totalLast30 = REVENUE_TYPES.reduce((s, r) => s + r.value, 0);
+function parseWindow(raw: string | string[] | undefined): WindowDays {
+  const v = Number(Array.isArray(raw) ? raw[0] : raw);
+  return (VALID_WINDOWS as readonly number[]).includes(v)
+    ? (v as WindowDays)
+    : 30;
+}
+
+export default async function RevenueOverviewPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ window?: string }>;
+}) {
+  const params = await searchParams;
+  const windowDays = parseWindow(params.window);
+  const [overview, kpis] = await Promise.all([
+    loadRevenueOverview(windowDays),
+    loadDirectoryKpis(),
+  ]);
+
+  // Daily series → spark for the trend chart. If the DB returned fewer
+  // than 2 days, render a flat line at zero so the chart doesn't crash.
+  const dailySeries =
+    overview.daily.length >= 2
+      ? overview.daily.map((d) => d.cents / 100)
+      : [0, 0];
+
+  // Largest type → donut focus. Sort desc by sum.
+  const sortedTypes = overview.byType.slice().sort(
+    (a, b) => b.sumCents - a.sumCents,
+  );
+  const largest = sortedTypes[0];
+  const largestPct = overview.totalCents
+    ? Math.round((largest?.sumCents / overview.totalCents) * 100)
+    : 0;
+  const largestLabel = largest ? KIND_LABEL[largest.type].label : "—";
+
+  const arpmCents = kpis.activeCount
+    ? Math.round(kpis.mrrCents / kpis.activeCount)
+    : 0;
+
+  const kpiItems: KpiCardItem[] = [
+    {
+      label: "MRR (estimate)",
+      value: formatCurrency(kpis.mrrCents),
+      delta: "+0%",
+      foot: "active × plan price",
+    },
+    {
+      label: "ARPM",
+      value: formatCurrency(arpmCents),
+      delta: "+0%",
+      foot: "rolling 30d",
+    },
+    {
+      label: "Revenue · 30d",
+      value: formatCurrency(overview.totalCents),
+      delta: "+0%",
+      foot: `${overview.daily.length}d active`,
+    },
+    {
+      label: "Failed payments",
+      value: overview.failedCount.toLocaleString(),
+      delta: overview.failedCount > 0 ? `+${overview.failedCount}` : "+0",
+      foot: "Dunning queue",
+    },
+  ];
 
   return (
     <>
@@ -37,21 +107,23 @@ export default function RevenueOverviewPage() {
         title="Revenue"
         subtitle={
           <>
-            <strong>{formatCurrency(totalLast30 * 100)}</strong> over 30 days,
-            up 8.4% on the trailing 30. Memberships make up{" "}
-            <strong>
-              {Math.round((REVENUE_TYPES[0].value / totalLast30) * 100)}%
-            </strong>{" "}
-            of revenue and grew 3.6 points.
+            <strong>{formatCurrency(overview.totalCents)}</strong> over{" "}
+            {windowDays} days. {largestLabel} make up{" "}
+            <strong>{largestPct}%</strong> of revenue this window.
           </>
         }
         actions={
           <>
             <span className="tabs">
-              <span className="tab">7d</span>
-              <span className="tab active">30d</span>
-              <span className="tab">90d</span>
-              <span className="tab">YTD</span>
+              {VALID_WINDOWS.map((w) => (
+                <a
+                  key={w}
+                  href={`?window=${w}`}
+                  className={`tab ${w === windowDays ? "active" : ""}`}
+                >
+                  {w === 365 ? "365d" : `${w}d`}
+                </a>
+              ))}
             </span>
             <button type="button" className="btn btn-ghost hov">
               <Icon name="download" size={13} /> Export
@@ -60,53 +132,7 @@ export default function RevenueOverviewPage() {
         }
       />
 
-      <div className="card card-tight" style={{ overflow: "hidden" }}>
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(4, 1fr)",
-            alignItems: "stretch",
-          }}
-        >
-          {[
-            { label: "MRR", value: "$53,820", delta: "+4.2%", foot: "vs prior month", dot: "var(--accent)" },
-            { label: "ARPM", value: "$187", delta: "+1.8%", foot: "rolling 30d", dot: "var(--teal)" },
-            { label: "Today's revenue", value: "$234", delta: "+12.0%", foot: "vs same-day LW", dot: "var(--moss)" },
-            { label: "Failed payments", value: "3", delta: "-2", foot: "Dunning queue", dot: "var(--neg)" },
-          ].map((k, i) => (
-            <div
-              key={k.label}
-              style={{
-                padding: "20px 22px",
-                borderRight: i < 3 ? "1px solid var(--border)" : "none",
-              }}
-            >
-              <div className="row" style={{ gap: 8, marginBottom: 8 }}>
-                <span
-                  style={{
-                    width: 6,
-                    height: 6,
-                    borderRadius: 2,
-                    background: k.dot,
-                  }}
-                />
-                <div className="metric-label" style={{ margin: 0 }}>
-                  {k.label}
-                </div>
-              </div>
-              <div className="big" style={{ fontSize: 36, marginBottom: 8 }}>
-                {k.value}
-              </div>
-              <div className="row" style={{ gap: 8 }}>
-                <ChangeBadge value={k.delta} />
-                <span className="muted" style={{ fontSize: 11 }}>
-                  {k.foot}
-                </span>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
+      <KpiCardStrip items={kpiItems} />
 
       <div
         style={{
@@ -127,7 +153,7 @@ export default function RevenueOverviewPage() {
                   textTransform: "uppercase",
                 }}
               >
-                Daily, last 28 days
+                Daily, last 30 days
               </span>
             }
           >
@@ -135,30 +161,12 @@ export default function RevenueOverviewPage() {
           </SectionHead>
           <div style={{ width: "100%" }}>
             <LineChart
-              data={DAILY_REVENUE}
+              data={dailySeries}
               width={760}
               height={220}
               color="var(--accent)"
               fill
             />
-          </div>
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              marginTop: 8,
-              fontFamily: "var(--mono)",
-              fontSize: 10,
-              color: "var(--text-3)",
-              letterSpacing: "0.08em",
-              textTransform: "uppercase",
-            }}
-          >
-            <span>Mar 25</span>
-            <span>Apr 1</span>
-            <span>Apr 8</span>
-            <span>Apr 15</span>
-            <span>Apr 22</span>
           </div>
         </div>
 
@@ -166,39 +174,42 @@ export default function RevenueOverviewPage() {
           <SectionHead>Revenue by type · 30d</SectionHead>
           <div className="row" style={{ gap: 24, alignItems: "flex-start" }}>
             <Donut
-              value={Math.round((REVENUE_TYPES[0].value / totalLast30) * 100)}
-              color="var(--accent)"
+              value={largestPct}
+              color={largest ? KIND_LABEL[largest.type].color : "var(--accent)"}
               size={130}
-              label="Memberships"
+              label={largestLabel}
             />
             <div style={{ flex: 1 }}>
-              {REVENUE_TYPES.map((r) => (
-                <div
-                  key={r.label}
-                  className="row"
-                  style={{
-                    justifyContent: "space-between",
-                    padding: "8px 0",
-                    borderBottom: "1px dashed var(--border)",
-                    fontSize: 13,
-                  }}
-                >
-                  <div className="row" style={{ gap: 8 }}>
-                    <span
-                      style={{
-                        width: 8,
-                        height: 8,
-                        borderRadius: 2,
-                        background: r.color,
-                      }}
-                    />
-                    <span>{r.label}</span>
+              {sortedTypes.map((r) => {
+                const meta = KIND_LABEL[r.type];
+                return (
+                  <div
+                    key={r.type}
+                    className="row"
+                    style={{
+                      justifyContent: "space-between",
+                      padding: "8px 0",
+                      borderBottom: "1px dashed var(--border)",
+                      fontSize: 13,
+                    }}
+                  >
+                    <div className="row" style={{ gap: 8 }}>
+                      <span
+                        style={{
+                          width: 8,
+                          height: 8,
+                          borderRadius: 2,
+                          background: meta.color,
+                        }}
+                      />
+                      <span>{meta.label}</span>
+                    </div>
+                    <span className="mono" style={{ fontWeight: 600 }}>
+                      {formatCurrency(r.sumCents)}
+                    </span>
                   </div>
-                  <span className="mono" style={{ fontWeight: 600 }}>
-                    {formatCurrency(r.value * 100)}
-                  </span>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         </div>

@@ -8,10 +8,13 @@
 import { createServerClient } from "@supabase/ssr";
 import { type NextRequest, NextResponse } from "next/server";
 
+import type { Database } from "@/lib/supabase/database.types";
+
 const PUBLIC_PREFIXES = [
   "/login",
   "/auth",
   "/api/webhooks", // Stripe / Resend POST here without our cookie
+  "/api/inngest", // Inngest signing-key verifies; cookie auth is wrong layer
   "/api/health",
 ];
 
@@ -19,10 +22,27 @@ function isPublic(pathname: string) {
   return PUBLIC_PREFIXES.some((p) => pathname === p || pathname.startsWith(`${p}/`));
 }
 
+// Hard prod guard mirrored from lib/auth.ts.
+if (
+  process.env.TEST_AUTH_BYPASS === "1" &&
+  process.env.NODE_ENV === "production"
+) {
+  throw new Error(
+    "TEST_AUTH_BYPASS=1 is not allowed in production. Remove it from your environment immediately.",
+  );
+}
+
 export async function refreshSupabaseSession(request: NextRequest) {
+  // Test-mode short-circuit: skip Supabase auth entirely. The
+  // application code in lib/auth.ts injects a fake test profile, so
+  // every gated route renders as if the test owner were signed in.
+  if (process.env.TEST_AUTH_BYPASS === "1") {
+    return NextResponse.next({ request });
+  }
+
   let response = NextResponse.next({ request });
 
-  const supabase = createServerClient(
+  const supabase = createServerClient<Database>(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
     {

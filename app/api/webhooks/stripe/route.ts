@@ -6,8 +6,12 @@
  * are stubbed for now; uncomment + flesh out as Stripe is wired.
  *
  * Public route per the proxy's PUBLIC_PREFIXES allowlist.
+ *
+ * activity_log.studio_id is NOT NULL — single-tenant for now.
  */
 
+import { STUDIO_ID } from "@/lib/constants";
+import type { Json } from "@/lib/supabase/database.types";
 import { createSupabaseServer } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -45,12 +49,16 @@ export async function POST(request: Request) {
   }
 
   const supabase = await createSupabaseServer();
-  const obj = event.data.object;
+  // event.data.object is Stripe's `Record<string, unknown>` which is
+  // structurally JSON-serializable; the DB column is `jsonb`. Cast
+  // through unknown so TS accepts the assignment.
+  const obj = event.data.object as unknown as Json;
 
   switch (event.type) {
     case "payment_intent.succeeded": {
       // TODO: insert / upsert into transactions
       await supabase.from("activity_log").insert({
+        studio_id: STUDIO_ID,
         type: "stripe_payment_succeeded",
         payload: obj,
       });
@@ -58,6 +66,7 @@ export async function POST(request: Request) {
     }
     case "invoice.payment_failed": {
       await supabase.from("activity_log").insert({
+        studio_id: STUDIO_ID,
         type: "stripe_payment_failed",
         payload: obj,
       });
@@ -65,6 +74,7 @@ export async function POST(request: Request) {
     }
     case "customer.subscription.updated": {
       await supabase.from("activity_log").insert({
+        studio_id: STUDIO_ID,
         type: "stripe_subscription_updated",
         payload: obj,
       });
@@ -72,6 +82,7 @@ export async function POST(request: Request) {
     }
     case "charge.dispute.created": {
       await supabase.from("activity_log").insert({
+        studio_id: STUDIO_ID,
         type: "stripe_dispute_created",
         payload: obj,
       });

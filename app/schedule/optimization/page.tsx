@@ -1,7 +1,14 @@
 /*
  * Schedule · Optimization — demand heatmap (day × time slot, 30-day avg
  * fill %) + AI recommendations panel using the IDA pattern.
+ *
+ * Heatmap pulls live fill ratios from `loadDemandHeatmap`; the AI
+ * recommendations are still authored fixtures pending the AI insights
+ * pipeline (briefing route works, persistence + per-page surfacing is
+ * the next pass).
  */
+
+export const dynamic = "force-dynamic";
 
 import { Fragment } from "react";
 
@@ -12,7 +19,11 @@ import {
   SectionHead,
   type Insight,
 } from "@/components/primitives";
+import { AnthropicNotConfigured } from "@/lib/ai/claude";
+import { generateScheduleRecommendations } from "@/lib/ai/schedule-recommendations";
+import { loadDemandHeatmap } from "@/lib/data/schedule";
 import { DEMAND_HEATMAP, SCHED_DAYS } from "@/lib/fixtures";
+import { createSupabaseServer } from "@/lib/supabase/server";
 
 const SLOT_LABELS = ["5 PM", "6 PM", "7 PM", "8 PM"];
 
@@ -32,58 +43,52 @@ function bucket(p: number): number {
   return 4;
 }
 
-const RECS: Insight[] = [
-  {
-    rank: "P1",
-    tone: "info",
-    kicker: "Capacity opportunity",
-    headline: "Add a 5 PM slot on Wednesdays.",
-    data: [
-      ["Avg waitlist", "8/wk"],
-      ["6 PM fill", "94%"],
-      ["Lift est.", "+$210/wk"],
-    ],
-    body:
-      "Waitlist rejections concentrate at 5–6 PM Wed. A new 5 PM Open Sauna would absorb the overflow without cannibalizing 6 PM (different cohort).",
-    action: "Add Wed 5 PM",
-    altAction: "Show data",
-    href: "/schedule/calendar",
-  },
+// Authored fallback when the AI can't run (no Anthropic key, no class
+// data, etc.). Helps the page stay useful instead of going blank.
+const FALLBACK_RECS: Insight[] = [
   {
     rank: "P2",
-    tone: "warn",
-    kicker: "Underbooked",
-    headline: "Move Whitney's guided class to 6 PM.",
+    tone: "info",
+    kicker: "AI offline",
+    headline: "Schedule recommendations need an Anthropic API key + recent class data.",
     data: [
-      ["7 PM fill", "20%"],
-      ["6 PM fill", "85%"],
-      ["Lift est.", "+73%"],
+      ["Status", "Fallback"],
+      ["Window", "30 days"],
+      ["Need", "ANTHROPIC_API_KEY"],
     ],
     body:
-      "Whitney's Tue/Wed 7 PM is consistently below 50%. Moving her Tue slot to 6 PM matches her Mon attendance — Trent is on Tue 6 PM, suggesting a swap.",
-    action: "Propose swap",
-    altAction: "Cancel slot",
-    href: "/schedule/calendar",
-  },
-  {
-    rank: "P3",
-    tone: "neg",
-    kicker: "Low ROI",
-    headline: "Remove Sunday 12 PM Open Sauna.",
-    data: [
-      ["30-day avg fill", "34%"],
-      ["Bookings", "lowest"],
-      ["Trainer cost", "$0"],
-    ],
-    body:
-      "Sunday 12 PM has the lowest fill rate of any non-private slot. No-shows are half the bookings. Pause for two weeks; if trial succeeds, remove permanently.",
-    action: "Pause slot",
-    altAction: "Show 90-day trend",
-    href: "/schedule/calendar",
+      "Once ANTHROPIC_API_KEY is set in .env.local and the studio has at least a few weeks of class instances, this panel will surface three IDA-shaped recommendations against live demand.",
+    action: "Open settings",
+    href: "/settings",
   },
 ];
 
-export default function ScheduleOptimizationPage() {
+export default async function ScheduleOptimizationPage() {
+  const supabase = await createSupabaseServer();
+
+  const [live, recs] = await Promise.all([
+    loadDemandHeatmap(30),
+    generateScheduleRecommendations(supabase).catch((err) => {
+      if (err instanceof AnthropicNotConfigured) return [] as never;
+      throw err;
+    }),
+  ]);
+  const hasLive = live.some((row) => row.some((v) => v > 0));
+  const heatmap = hasLive ? live : DEMAND_HEATMAP;
+  const RECS: Insight[] = recs.length
+    ? recs.map((r) => ({
+        rank: r.rank,
+        tone: r.tone,
+        kicker: r.kicker,
+        headline: r.headline,
+        data: r.data,
+        body: r.body,
+        action: r.action,
+        altAction: r.altAction,
+        href: "/schedule/calendar",
+      }))
+    : FALLBACK_RECS;
+
   return (
     <>
       <PageHero
@@ -175,7 +180,7 @@ export default function ScheduleOptimizationPage() {
                 >
                   {d}
                 </span>
-                {DEMAND_HEATMAP[di].map((p, ci) => (
+                {heatmap[di].map((p, ci) => (
                   <div
                     key={`${d}-${ci}`}
                     title={`${d} ${SLOT_LABELS[ci]} · ${p}% avg fill`}

@@ -1,55 +1,102 @@
 /*
  * Members · Directory — sortable, filterable list with engagement badges
  * (SPEC §1.4). Smart segments live in a sidebar; clicking a row jumps to
- * the profile drill-down (TODO: profile page).
+ * the profile drill-down.
+ *
+ * Live data: KPI strip from `loadDirectoryKpis`, segments from
+ * `loadSegmentCounts`, member rows from `listMembers`. Each loader has
+ * a fixture fallback.
  */
+
+export const dynamic = "force-dynamic";
 
 import Link from "next/link";
 
 import { Avatar } from "@/components/avatar";
 import { Icon } from "@/components/icon";
 import {
-  ChangeBadge,
+  KpiCardStrip,
   PageHero,
   SectionHead,
+  SearchBar,
+  TableHead,
+  type KpiCardItem,
 } from "@/components/primitives";
-import { listMembers } from "@/lib/data/members";
-import {
-  ENGAGEMENT_TONE,
-  SEGMENTS,
-  type Member,
-} from "@/lib/fixtures";
+import { StatusPill, ToneBadge } from "@/components/status-pill";
+import { listMembers, loadDirectoryKpis } from "@/lib/data/members";
+import { loadSegmentCounts } from "@/lib/data/segments";
+import { ENGAGEMENT_TONE, SEGMENTS } from "@/lib/fixtures";
 import { formatCurrency } from "@/lib/utils";
 
-function StatusPill({ status }: { status: Member["status"] }) {
-  const map: Record<Member["status"], { fg: string; soft: string; label: string }> = {
-    active: { fg: "var(--pos)", soft: "var(--pos-soft)", label: "Active" },
-    paused: { fg: "var(--warn)", soft: "var(--warn-soft)", label: "Paused" },
-    cancelled: { fg: "var(--text-3)", soft: "var(--surface-3)", label: "Cancelled" },
-    trialing: { fg: "var(--cobalt)", soft: "var(--cobalt-soft)", label: "Trial" },
-  };
-  const m = map[status];
-  return (
-    <span className="badge" style={{ background: m.soft, color: m.fg }}>
-      {m.label}
-    </span>
-  );
-}
+const TABLE_COLUMNS = [
+  { label: "Member" },
+  { label: "Tier" },
+  { label: "Status" },
+  { label: "Engagement" },
+  { label: "Credits", align: "right" as const },
+  { label: "LTV", align: "right" as const },
+  { label: "Last visit", align: "right" as const },
+];
 
-export default async function MembersDirectoryPage() {
-  const members = await listMembers();
+export default async function MembersDirectoryPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ q?: string }>;
+}) {
+  const params = (await searchParams) ?? {};
+  const search = params.q ?? "";
+
+  const [members, kpis, segmentCounts] = await Promise.all([
+    listMembers({ limit: 50, search }),
+    loadDirectoryKpis(),
+    loadSegmentCounts(),
+  ]);
+
+  const heroMeta = `${kpis.activeCount} active · ${kpis.newThisMonthCount} new this month · Tampa`;
+  const heroSubtitle = (
+    <>
+      Search by name, email, or phone.{" "}
+      <strong>{kpis.trialCount} trials</strong> in the funnel — convert this
+      week.
+    </>
+  );
+
+  // MRR-monthly approximation: most plans are monthly, so plan_price_cents
+  // sum is close enough for a top-line operator KPI. Annual plans skew
+  // high; we'll refine when plan-cycle metadata is wired into the schema.
+  const kpiItems: KpiCardItem[] = [
+    {
+      label: "Active members",
+      value: kpis.activeCount.toLocaleString(),
+      delta: "+0",
+      foot: "live",
+    },
+    {
+      label: "MRR (estimate)",
+      value: formatCurrency(kpis.mrrCents),
+      delta: "+0%",
+      foot: "active × plan price",
+    },
+    {
+      label: "New this month",
+      value: kpis.newThisMonthCount.toLocaleString(),
+      delta: "+0",
+      foot: "rolling 30d",
+    },
+    {
+      label: "Trials",
+      value: kpis.trialCount.toLocaleString(),
+      delta: "+0",
+      foot: "in funnel",
+    },
+  ];
+
   return (
     <>
       <PageHero
-        meta="287 active · 14 new this month · Tampa"
+        meta={heroMeta}
         title="Members"
-        subtitle={
-          <>
-            Search by name, email, or phone. <strong>14 trials</strong> in the
-            funnel; 4 of them have booked twice in their first week — that&apos;s
-            the cohort to convert this week.
-          </>
-        }
+        subtitle={heroSubtitle}
         actions={
           <>
             <button type="button" className="btn btn-ghost hov">
@@ -62,41 +109,7 @@ export default async function MembersDirectoryPage() {
         }
       />
 
-      <div className="card card-tight" style={{ overflow: "hidden" }}>
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(4, 1fr)",
-            alignItems: "stretch",
-          }}
-        >
-          {[
-            { label: "Active members", value: "287", delta: "+12", foot: "MoM" },
-            { label: "MRR", value: "$53,820", delta: "+4.2%", foot: "MoM" },
-            { label: "Avg LTV", value: "$1,240", delta: "+$38", foot: "rolling 12mo" },
-            { label: "30-day churn", value: "2.4%", delta: "-0.6 pts", foot: "industry: 4.1%" },
-          ].map((k, i) => (
-            <div
-              key={k.label}
-              style={{
-                padding: "20px 22px",
-                borderRight: i < 3 ? "1px solid var(--border)" : "none",
-              }}
-            >
-              <div className="metric-label">{k.label}</div>
-              <div className="big" style={{ fontSize: 36, marginBottom: 8 }}>
-                {k.value}
-              </div>
-              <div className="row" style={{ gap: 8 }}>
-                <ChangeBadge value={k.delta} />
-                <span className="muted" style={{ fontSize: 11 }}>
-                  {k.foot}
-                </span>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
+      <KpiCardStrip items={kpiItems} />
 
       <div
         style={{
@@ -110,32 +123,35 @@ export default async function MembersDirectoryPage() {
         <div className="card" style={{ padding: 18 }}>
           <SectionHead>Segments</SectionHead>
           <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-            {SEGMENTS.map((s, i) => (
-              <Link
-                key={s.id}
-                href={`/members/segments?id=${s.id}`}
-                className="hov"
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  padding: "8px 10px",
-                  borderRadius: 8,
-                  color: "inherit",
-                  textDecoration: "none",
-                  fontSize: 12.5,
-                  background: i === 0 ? "var(--surface-2)" : "transparent",
-                  fontWeight: i === 0 ? 600 : 500,
-                }}
-              >
-                <span>{s.name}</span>
-                <span
-                  className="mono"
-                  style={{ fontSize: 11, color: "var(--text-3)" }}
+            {SEGMENTS.map((s, i) => {
+              const count = segmentCounts[s.id] ?? s.count;
+              return (
+                <Link
+                  key={s.id}
+                  href={`/members/segments?id=${s.id}`}
+                  className="hov"
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    padding: "8px 10px",
+                    borderRadius: 8,
+                    color: "inherit",
+                    textDecoration: "none",
+                    fontSize: 12.5,
+                    background: i === 0 ? "var(--surface-2)" : "transparent",
+                    fontWeight: i === 0 ? 600 : 500,
+                  }}
                 >
-                  {s.count}
-                </span>
-              </Link>
-            ))}
+                  <span>{s.name}</span>
+                  <span
+                    className="mono"
+                    style={{ fontSize: 11, color: "var(--text-3)" }}
+                  >
+                    {count.toLocaleString()}
+                  </span>
+                </Link>
+              );
+            })}
           </div>
         </div>
 
@@ -150,29 +166,7 @@ export default async function MembersDirectoryPage() {
               gap: 10,
             }}
           >
-            <div
-              className="row"
-              style={{
-                gap: 8,
-                background: "var(--surface-2)",
-                border: "1px solid var(--border)",
-                borderRadius: 9999,
-                padding: "6px 12px",
-                flex: 1,
-              }}
-            >
-              <Icon name="search" size={14} />
-              <input
-                placeholder="Search members…"
-                style={{
-                  flex: 1,
-                  background: "transparent",
-                  border: "none",
-                  outline: "none",
-                  fontSize: 13,
-                }}
-              />
-            </div>
+            <SearchBar placeholder="Search members…" />
             <button type="button" className="btn btn-ghost hov">
               <Icon name="filter" size={13} /> Status: Any
             </button>
@@ -181,40 +175,7 @@ export default async function MembersDirectoryPage() {
             </button>
           </div>
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
-            <thead>
-              <tr
-                style={{
-                  background: "var(--surface-2)",
-                  borderBottom: "1px solid var(--border)",
-                }}
-              >
-                {[
-                  ["Member", "left"],
-                  ["Tier", "left"],
-                  ["Status", "left"],
-                  ["Engagement", "left"],
-                  ["Credits", "right"],
-                  ["LTV", "right"],
-                  ["Last visit", "right"],
-                ].map(([label, align]) => (
-                  <th
-                    key={label}
-                    style={{
-                      textAlign: align as "left" | "right",
-                      padding: "10px 14px",
-                      fontFamily: "var(--mono)",
-                      fontSize: 10,
-                      letterSpacing: "0.12em",
-                      textTransform: "uppercase",
-                      color: "var(--text-3)",
-                      fontWeight: 600,
-                    }}
-                  >
-                    {label}
-                  </th>
-                ))}
-              </tr>
-            </thead>
+            <TableHead columns={TABLE_COLUMNS} />
             <tbody>
               {members.map((m) => {
                 const tone = ENGAGEMENT_TONE[m.engagement];
@@ -227,7 +188,11 @@ export default async function MembersDirectoryPage() {
                       <Link
                         href={`/members/${m.id}`}
                         className="row hov"
-                        style={{ gap: 10, textDecoration: "none", color: "inherit" }}
+                        style={{
+                          gap: 10,
+                          textDecoration: "none",
+                          color: "inherit",
+                        }}
                       >
                         <Avatar name={m.name} seed={m.seed} size={28} />
                         <div>
@@ -250,12 +215,7 @@ export default async function MembersDirectoryPage() {
                       <StatusPill status={m.status} />
                     </td>
                     <td style={{ padding: "12px 14px" }}>
-                      <span
-                        className="badge"
-                        style={{ background: tone.soft, color: tone.fg }}
-                      >
-                        {m.engagement}
-                      </span>
+                      <ToneBadge tone={tone}>{m.engagement}</ToneBadge>
                       {m.strikes > 0 && (
                         <span
                           className="badge"

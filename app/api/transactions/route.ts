@@ -4,7 +4,7 @@
 
 import { z } from "zod";
 
-import { authErrorResponse, requireProfile } from "@/lib/auth";
+import { authErrorResponse, requireRole } from "@/lib/auth";
 import { createSupabaseServer } from "@/lib/supabase/server";
 
 const Query = z.object({
@@ -30,7 +30,8 @@ const Query = z.object({
 
 export async function GET(request: Request) {
   try {
-    await requireProfile();
+    // Transactions carry PII + financial detail — restrict to owner/manager.
+    const profile = await requireRole("owner", "manager");
     const url = new URL(request.url);
     const params = Query.parse(Object.fromEntries(url.searchParams));
     const supabase = await createSupabaseServer();
@@ -40,6 +41,7 @@ export async function GET(request: Request) {
       .select(
         "id, occurred_at, type, status, amount_cents, currency, description, member_id, glofox_id, stripe_payment_intent",
       )
+      .eq("studio_id", profile.studio_id)
       .order("occurred_at", { ascending: false })
       .limit(params.limit);
     if (params.status) query = query.eq("status", params.status);

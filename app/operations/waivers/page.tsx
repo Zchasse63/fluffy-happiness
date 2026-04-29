@@ -1,26 +1,25 @@
 /*
- * Operations · Waivers — signed and expiring waivers per member.
+ * Operations · Waivers — signed and expiring waivers per member. Live
+ * via `loadWaivers` (member_waivers JOIN waiver_templates), with the
+ * status computed client-side from `expires_at` (active / expiring /
+ * expired). Falls back to fixture set when empty.
  */
+
+export const dynamic = "force-dynamic";
 
 import { Avatar } from "@/components/avatar";
 import { Icon } from "@/components/icon";
 import { PageHero } from "@/components/primitives";
+import { loadWaivers } from "@/lib/data/waivers";
 
-const WAIVERS = [
-  { id: "w1", member: "Alex Park", template: "Cold plunge · v3", signed: "Sep 12, 2025", expires: "Sep 12, 2026", status: "active" as const, seed: 12 },
-  { id: "w2", member: "Maya Chen", template: "Cold plunge · v3", signed: "Apr 2, 2026", expires: "Apr 2, 2027", status: "active" as const, seed: 51 },
-  { id: "w3", member: "Maya Chen", template: "Sauna contraindications · v2", signed: "Apr 2, 2026", expires: "Apr 2, 2027", status: "active" as const, seed: 51 },
-  { id: "w4", member: "Maya Chen", template: "Sauna contraindications · v1", signed: "Apr 14, 2025", expires: "Apr 14, 2026", status: "expired" as const, seed: 51 },
-  { id: "w5", member: "Priya Shah", template: "Cold plunge · v3", signed: "Apr 19, 2026", expires: "Apr 19, 2027", status: "active" as const, seed: 88 },
-  { id: "w6", member: "Sim Harmon", template: "Sauna contraindications · v2", signed: "Mar 11, 2025", expires: "Mar 11, 2026", status: "expired" as const, seed: 7 },
-];
-
-export default function WaiversPage() {
+export default async function WaiversPage() {
+  const WAIVERS = await loadWaivers();
   const expired = WAIVERS.filter((w) => w.status === "expired");
+  const expiring = WAIVERS.filter((w) => w.status === "expiring");
   return (
     <>
       <PageHero
-        meta={`${WAIVERS.length} on file · ${expired.length} expired`}
+        meta={`${WAIVERS.length} on file · ${expired.length} expired · ${expiring.length} expiring soon`}
         title="Waivers"
         subtitle="Signed waivers per member, with auto-reminders 14 days before expiry. Expired waivers must be re-signed before the next visit."
         actions={
@@ -86,8 +85,18 @@ export default function WaiversPage() {
                   <span
                     className="badge"
                     style={{
-                      background: w.status === "active" ? "var(--pos-soft)" : "var(--neg-soft)",
-                      color: w.status === "active" ? "var(--pos)" : "var(--neg)",
+                      background:
+                        w.status === "active"
+                          ? "var(--pos-soft)"
+                          : w.status === "expiring"
+                            ? "var(--warn-soft)"
+                            : "var(--neg-soft)",
+                      color:
+                        w.status === "active"
+                          ? "var(--pos)"
+                          : w.status === "expiring"
+                            ? "var(--warn)"
+                            : "var(--neg)",
                     }}
                   >
                     {w.status}

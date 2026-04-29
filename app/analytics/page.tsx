@@ -2,20 +2,30 @@
  * Analytics — KPI dashboard + AI insights feed + cohort retention preview.
  * The pricing simulator and trainer performance breakdowns are linked
  * but live in the Revenue / Operations modules.
+ *
+ * Top-of-page KPIs come from `loadDirectoryKpis` + `loadRevenueOverview`.
+ * Cohort retention chart + IDA insights remain authored fixtures pending
+ * the real cohort + insight pipelines.
  */
+
+export const dynamic = "force-dynamic";
 
 import Link from "next/link";
 
 import { Icon } from "@/components/icon";
 import {
-  ChangeBadge,
   Donut,
   InsightCard,
+  KpiCardStrip,
   LineChart,
   PageHero,
   SectionHead,
   type Insight,
+  type KpiCardItem,
 } from "@/components/primitives";
+import { loadDirectoryKpis } from "@/lib/data/members";
+import { loadRevenueOverview } from "@/lib/data/revenue";
+import { formatCurrency } from "@/lib/utils";
 
 const COHORT_RETENTION = [
   100, 92, 85, 78, 73, 69, 65, 62, 59, 57, 55, 54,
@@ -72,7 +82,48 @@ const INSIGHTS: Insight[] = [
   },
 ];
 
-export default function AnalyticsPage() {
+export default async function AnalyticsPage() {
+  const [kpis, revenue] = await Promise.all([
+    loadDirectoryKpis(),
+    loadRevenueOverview(30),
+  ]);
+  const arpmCents = kpis.activeCount
+    ? Math.round(kpis.mrrCents / kpis.activeCount)
+    : 0;
+
+  const liveKpis: KpiCardItem[] = [
+    {
+      label: "MRR",
+      value: formatCurrency(kpis.mrrCents),
+      delta: "+0%",
+      foot: "active × plan",
+    },
+    {
+      label: "Active members",
+      value: kpis.activeCount.toLocaleString(),
+      delta: "+0",
+      foot: "live",
+    },
+    {
+      label: "ARPM",
+      value: formatCurrency(arpmCents),
+      delta: "+0%",
+      foot: "rolling 30d",
+    },
+    {
+      label: "Revenue · 30d",
+      value: formatCurrency(revenue.totalCents),
+      delta: "+0%",
+      foot: `${revenue.daily.length}d active`,
+    },
+    {
+      label: "Failed payments",
+      value: revenue.failedCount.toLocaleString(),
+      delta: revenue.failedCount > 0 ? `+${revenue.failedCount}` : "+0",
+      foot: "Dunning",
+    },
+  ];
+
   return (
     <>
       <PageHero
@@ -94,37 +145,7 @@ export default function AnalyticsPage() {
         }
       />
 
-      <div className="card card-tight" style={{ overflow: "hidden" }}>
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(5, 1fr)",
-            alignItems: "stretch",
-          }}
-        >
-          {[
-            { label: "MRR", value: "$53,820", delta: "+4.2%" },
-            { label: "Active members", value: "287", delta: "+12" },
-            { label: "Avg LTV", value: "$1,240", delta: "+$38" },
-            { label: "Churn · 30d", value: "2.4%", delta: "-0.6 pts" },
-            { label: "NRR", value: "104%", delta: "+1.8 pts" },
-          ].map((k, i) => (
-            <div
-              key={k.label}
-              style={{
-                padding: "20px 22px",
-                borderRight: i < 4 ? "1px solid var(--border)" : "none",
-              }}
-            >
-              <div className="metric-label">{k.label}</div>
-              <div className="big" style={{ fontSize: 32, marginBottom: 8 }}>
-                {k.value}
-              </div>
-              <ChangeBadge value={k.delta} />
-            </div>
-          ))}
-        </div>
-      </div>
+      <KpiCardStrip items={liveKpis} />
 
       <div
         style={{

@@ -26,14 +26,32 @@ export async function POST(
     const body = Body.parse(await request.json());
     const supabase = await createSupabaseServer();
 
+    // Look up the member's current_period_end so end-of-cycle
+    // cancellation actually has a date to schedule against.
+    const { data: existing } = await supabase
+      .from("members")
+      .select("current_period_end")
+      .eq("id", id)
+      .eq("studio_id", profile.studio_id)
+      .maybeSingle();
+
+    const nowIso = new Date().toISOString();
     const update = body.effectiveImmediately
       ? {
           membership_status: "cancelled" as const,
-          cancelled_at: new Date().toISOString(),
+          cancelled_at: nowIso,
         }
       : {
-          membership_status: "cancelled" as const,
-          pending_change_at: null,
+          // End-of-cycle cancel: keep the member active until
+          // current_period_end, schedule the status flip via
+          // pending_change_at. If we don't know period end, treat
+          // it as immediate to avoid a stuck "scheduled" state with
+          // no firing date.
+          membership_status: existing?.current_period_end
+            ? ("active" as const)
+            : ("cancelled" as const),
+          cancelled_at: existing?.current_period_end ? null : nowIso,
+          pending_change_at: existing?.current_period_end ?? null,
         };
 
     const { data, error } = await supabase

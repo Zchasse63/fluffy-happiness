@@ -1,35 +1,26 @@
 /*
  * Revenue · Gift cards — issued and redeemed cards with wallet balances.
+ * Live via `loadGiftCards` against `gift_cards` (added in 0013); falls
+ * back to a small fixture when the table is empty.
  */
+
+export const dynamic = "force-dynamic";
 
 import { Avatar } from "@/components/avatar";
 import { Icon } from "@/components/icon";
 import { ChangeBadge, PageHero } from "@/components/primitives";
+import { loadGiftCards } from "@/lib/data/retail";
 import { formatCurrency } from "@/lib/utils";
 
-type GiftCard = {
-  id: string;
-  recipient: string;
-  amountCents: number;
-  remainingCents: number;
-  issuedBy: string;
-  issued: string;
-  status: "active" | "redeemed" | "expired";
-  seed?: number;
-};
-
-const CARDS: GiftCard[] = [
-  { id: "gc_801", recipient: "Daniel Ruiz", amountCents: 10000, remainingCents: 6800, issuedBy: "Self", issued: "Apr 19", status: "active", seed: 63 },
-  { id: "gc_800", recipient: "Maya Chen", amountCents: 5000, remainingCents: 0, issuedBy: "Whitney Abrams", issued: "Apr 14", status: "redeemed", seed: 51 },
-  { id: "gc_799", recipient: "Theo Park", amountCents: 7500, remainingCents: 7500, issuedBy: "Trent Lott", issued: "Apr 10", status: "active", seed: 88 },
-  { id: "gc_798", recipient: "Lucia Marin", amountCents: 15000, remainingCents: 3200, issuedBy: "Self", issued: "Mar 22", status: "active", seed: 11 },
-  { id: "gc_797", recipient: "Owen Reilly", amountCents: 5000, remainingCents: 0, issuedBy: "Self", issued: "Feb 12", status: "expired", seed: 60 },
-];
-
-export default function GiftCardsPage() {
+export default async function GiftCardsPage() {
+  const CARDS = await loadGiftCards();
   const issued30 = CARDS.reduce((s, c) => s + c.amountCents, 0);
   const outstanding = CARDS.filter((c) => c.status === "active").reduce(
     (s, c) => s + c.remainingCents,
+    0,
+  );
+  const redeemed = CARDS.filter((c) => c.status === "redeemed").reduce(
+    (s, c) => s + c.amountCents,
     0,
   );
 
@@ -60,9 +51,9 @@ export default function GiftCardsPage() {
           }}
         >
           {[
-            { label: "Issued · 30d", value: formatCurrency(issued30), delta: "+$2,400", foot: "5 cards" },
-            { label: "Outstanding", value: formatCurrency(outstanding), delta: "+$1,150", foot: "3 cards" },
-            { label: "Redeemed · 30d", value: formatCurrency(8200), delta: "+12.4%", foot: "vs prior month" },
+            { label: "Issued total", value: formatCurrency(issued30), delta: "+0", foot: `${CARDS.length} cards` },
+            { label: "Outstanding", value: formatCurrency(outstanding), delta: "+0", foot: `${CARDS.filter((c) => c.status === "active").length} active` },
+            { label: "Redeemed", value: formatCurrency(redeemed), delta: "+0", foot: "fully spent" },
           ].map((k, i) => (
             <div
               key={k.label}
@@ -155,13 +146,13 @@ export default function GiftCardsPage() {
                       background:
                         c.status === "active"
                           ? "var(--pos-soft)"
-                          : c.status === "expired"
+                          : c.status === "expired" || c.status === "voided"
                             ? "var(--neg-soft)"
                             : "var(--surface-3)",
                       color:
                         c.status === "active"
                           ? "var(--pos)"
-                          : c.status === "expired"
+                          : c.status === "expired" || c.status === "voided"
                             ? "var(--neg)"
                             : "var(--text-2)",
                     }}

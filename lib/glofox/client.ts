@@ -1,15 +1,16 @@
 /*
- * Glofox REST client — retry, rate-limit handling, auto-pagination.
+ * Glofox REST client — verified against the official OpenAPI 2.2 spec
+ * + the project's Glofox API guide (docs/glofox-api-guide.md).
  *
+ * Auth: 3 headers — x-api-key, x-glofox-api-token, x-glofox-branch-id.
  * Live: 10 req/sec · Sandbox: 3 req/sec · Burst: 1000/300s.
- * Endpoints documented at https://apidocs-plat.aws.glofox.com/openapi.yaml
  *
- * Per rebuild-handoff §4.3 patterns A + B + C — keep separation of
- * retryable (network/429/5xx) vs non-retryable (4xx) failures.
+ * Per rebuild-handoff §4.3 patterns A + B + C — keep retryable
+ * (network/429/5xx) separate from non-retryable (4xx) failures, and
+ * use the project's Paged<T> contract.
  *
- * NOTE: live calls are gated behind GLOFOX_API_KEY/GLOFOX_API_TOKEN. With
- * those unset (the autonomous build) every method throws
- * `GlofoxNotConfigured` — callers should fall back to fixtures.
+ * Without GLOFOX_API_KEY/GLOFOX_API_TOKEN every method throws
+ * `GlofoxNotConfigured` so callers can fall back to fixtures.
  */
 
 import type { Paged } from "./types";
@@ -64,13 +65,22 @@ export class GlofoxClient {
   }
 
   static isConfigured(): boolean {
+    // GLOFOX_NAMESPACE is required by the transactions endpoint —
+    // missing it produces empty TransactionsList responses silently
+    // (audit LOW-6). Treat it as load-bearing.
     return Boolean(
       process.env.GLOFOX_API_KEY &&
         process.env.GLOFOX_API_TOKEN &&
-        process.env.GLOFOX_BRANCH_ID,
+        process.env.GLOFOX_BRANCH_ID &&
+        process.env.GLOFOX_NAMESPACE,
     );
   }
 
+  /**
+   * Some Glofox endpoints return `200 OK` with `{success:false}` on
+   * routing errors. We treat that as a 4xx so the caller doesn't
+   * silently swallow misconfiguration.
+   */
   private async request<T>(
     method: "GET" | "POST" | "PUT" | "DELETE",
     path: string,
@@ -109,11 +119,28 @@ export class GlofoxClient {
           await sleep(250 * 2 ** (attempt - 1));
           continue;
         }
+        const json = await res.json().catch(() => null);
         if (!res.ok) {
-          const text = await res.text().catch(() => "");
-          throw new GlofoxApiError(res.status, path, text || res.statusText);
+          throw new GlofoxApiError(
+            res.status,
+            path,
+            (json && JSON.stringify(json)) || res.statusText,
+          );
         }
-        return (await res.json()) as T;
+        // Glofox quirk: 200 with success=false
+        if (
+          json &&
+          typeof json === "object" &&
+          "success" in json &&
+          (json as Record<string, unknown>).success === false
+        ) {
+          throw new GlofoxApiError(
+            400,
+            path,
+            JSON.stringify(json),
+          );
+        }
+        return json as T;
       } catch (err) {
         lastErr = err;
         if (err instanceof GlofoxApiError) throw err; // 4xx
@@ -129,14 +156,20 @@ export class GlofoxClient {
   async fetchAll<T>(
     path: string,
     params: Record<string, unknown> = {},
+    opts: { dataKey?: string } = {},
   ): Promise<T[]> {
     const all: T[] = [];
-    let page = 0;
-    while (page < SAFETY_PAGE_CAP) {
-      const result = await this.request<Paged<T>>("GET", path, {
-        params: { ...params, limit: PAGE_SIZE, offset: page * PAGE_SIZE },
+    let page = 1;
+    while (page <= SAFETY_PAGE_CAP) {
+      const result = await this.request<
+        Paged<T> & Record<string, unknown>
+      >("GET", path, {
+        params: { ...params, limit: PAGE_SIZE, page },
       });
-      const data = result.data ?? [];
+      const data =
+        (opts.dataKey
+          ? (result[opts.dataKey] as T[])
+          : result.data) ?? [];
       all.push(...data);
       const hasMore =
         result.has_more === true ||
@@ -145,56 +178,155 @@ export class GlofoxClient {
           : data.length === PAGE_SIZE);
       if (!hasMore) break;
       page++;
-      await sleep(100); // gentle pace
+      await sleep(120); // gentle pace, well under 10 req/sec
     }
     return all;
   }
 
-  // ── Endpoint shortcuts (typed wrappers around request/fetchAll) ──
+  // ── Endpoint shortcuts (paths verified against guide v2.2.0) ────────
 
-  members() {
+  /** Members (a.k.a. clients) for the configured branch. */
+  members(params?: { utc_modified_start_date?: string }) {
     return this.fetchAll<import("./types").GlofoxMember>(
-      `/2.0/branches/${this.cfg.branchId}/members`,
+      `/2.0/members`,
+      params ?? {},
     );
   }
+
   member(id: string) {
     return this.request<import("./types").GlofoxMember>(
       "GET",
       `/2.0/members/${id}`,
     );
   }
-  staff() {
+
+  /** Staff (admins, trainers, reception). */
+  staff(params?: { type?: "ADMIN" | "MEMBER" | "RECEPTION" | "TRAINER" }) {
     return this.fetchAll<import("./types").GlofoxStaff>(
-      `/2.0/branches/${this.cfg.branchId}/staff`,
-    );
-  }
-  programs() {
-    return this.fetchAll<import("./types").GlofoxProgram>(
-      `/2.0/branches/${this.cfg.branchId}/programs`,
-    );
-  }
-  classes(params?: { from?: string; to?: string }) {
-    return this.fetchAll<import("./types").GlofoxClass>(
-      `/2.0/branches/${this.cfg.branchId}/events`,
+      `/2.0/staff`,
       params ?? {},
     );
   }
-  bookings(params?: { from?: string; to?: string }) {
+
+  /** Membership plans configured for the studio. */
+  membershipPlans() {
+    return this.fetchAll<{
+      _id: string;
+      branch_id: string;
+      namespace: string;
+      active: boolean;
+      name: string;
+      description?: string;
+      buy_just_once?: boolean;
+      plans?: Array<{
+        code: string;
+        type: string;
+        duration_time_unit?: string;
+        duration_time_unit_count?: number;
+        price?: number;
+        upfront_fee?: number;
+      }>;
+    }>(`/2.0/memberships`);
+  }
+
+  /**
+   * Programs / categories — POST search endpoint scoped by location.
+   * In Glofox, branch_id == location_id for single-location studios.
+   */
+  async programs() {
+    return this.request<{
+      data: Array<{ _id: string; name: string; description?: string; active?: boolean }>;
+    }>("POST", `/v3.0/locations/${this.cfg.branchId}/search-programs`, {
+      body: { active: true },
+    }).then((r) => r.data ?? []);
+  }
+
+  /** Class instances ("events"). Use `start`/`end` (unix string seconds) to scope. */
+  classes(params?: {
+    start?: string;
+    end?: string;
+    utc_modified_start_date?: string;
+  }) {
+    return this.fetchAll<import("./types").GlofoxClass>(
+      `/2.0/events`,
+      params ?? {},
+    );
+  }
+
+  /** Studio-wide bookings. ISO 8601 date range supported. */
+  bookings(params?: {
+    start_date?: string;
+    end_date?: string;
+    modified_start_date?: string;
+    modified_end_date?: string;
+    status?: string;
+  }) {
     return this.fetchAll<import("./types").GlofoxBooking>(
       `/2.2/branches/${this.cfg.branchId}/bookings`,
       params ?? {},
     );
   }
-  transactionsRaw() {
-    return this.fetchAll<import("./types").GlofoxTransactionRow>(
-      `/2.0/branches/${this.cfg.branchId}/analytics/report`,
-      { type: "transactions" },
-    );
+
+  /**
+   * Transactions report — POST with required model:"TransactionsList".
+   * Response wraps in `TransactionsList.details[]`, not `data[]`.
+   * `start`/`end` are STRING unix-second timestamps.
+   */
+  async transactions(params: { startUnix: string; endUnix: string }) {
+    const res = await this.request<{
+      TransactionsList?: { details?: import("./types").GlofoxTransaction[] };
+    }>("POST", `/Analytics/report`, {
+      body: {
+        model: "TransactionsList",
+        branch_id: this.cfg.branchId,
+        namespace: process.env.GLOFOX_NAMESPACE,
+        start: params.startUnix,
+        end: params.endUnix,
+        filter: {
+          ReportByMembers: false,
+          CompareToRanges: false,
+          PaymentMethods: [
+            { id: "cash" },
+            { id: "credit_card" },
+            { id: "bank_transfer" },
+            { id: "paypal" },
+            { id: "direct_debit" },
+            { id: "complimentary" },
+            { id: "wallet" },
+          ],
+        },
+      },
+    });
+    return res.TransactionsList?.details ?? [];
   }
-  leads(params?: { status?: string }) {
-    return this.fetchAll<import("./types").GlofoxLead>(
-      `/2.1/branches/${this.cfg.branchId}/leads/filter`,
-      params ?? {},
+
+  /** Leads — POST filter endpoint. */
+  async leads(params?: { lead_status?: string[] }) {
+    return this.request<{
+      data?: import("./types").GlofoxLead[];
+      total_count?: number;
+    }>("POST", `/2.1/branches/${this.cfg.branchId}/leads/filter`, {
+      body: params ?? {},
+    }).then((r) => r.data ?? []);
+  }
+
+  /** Per-member credit packs. */
+  credits(userId: string) {
+    return this.request<{
+      data?: Array<{
+        _id: string;
+        branch_id: string;
+        user_id: string;
+        model: string;
+        num_sessions: number;
+        active: boolean;
+        start_date?: string;
+        end_date?: string;
+        membership_id?: string;
+        membership_name?: string;
+      }>;
+    }>("GET", `/2.0/credits`, { params: { user_id: userId } }).then(
+      (r) => r.data ?? [],
     );
   }
 }
@@ -203,7 +335,7 @@ function sleep(ms: number) {
   return new Promise((res) => setTimeout(res, ms));
 }
 
-/** Glofox wraps each transaction in a payment-provider key. Flatten it. */
+/** Glofox wraps each transaction in a payment-provider key (legacy). */
 export function unwrapTransactionRow(
   row: import("./types").GlofoxTransactionRow,
 ): import("./types").GlofoxTransaction | null {

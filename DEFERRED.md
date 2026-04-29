@@ -6,15 +6,31 @@ and **how to unblock**.
 
 ## External credentials
 
-| Item | Needed for | How to unblock |
-|---|---|---|
-| `GLOFOX_API_KEY` + `GLOFOX_API_TOKEN` | Live sync of members/classes/bookings/transactions | Paste real values into `.env.local` from Glofox Integrations page; the client will retry on next request. |
-| `STRIPE_SECRET_KEY` + `STRIPE_WEBHOOK_SECRET` + `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` | Refunds, subscription updates, dunning retries | Stripe Dashboard → Developers → API keys + Webhooks. Webhook endpoint is `/api/webhooks/stripe`. |
-| `RESEND_API_KEY` + `RESEND_WEBHOOK_SECRET` | Campaign sends + delivery tracking | Resend Dashboard. Webhook is `/api/webhooks/resend`. |
-| `ANTHROPIC_API_KEY` | Daily AI briefing + Ask Meridian + churn prediction | Anthropic Console. Used by `lib/ai/claude.ts`. |
-| `INNGEST_SIGNING_KEY` + `INNGEST_EVENT_KEY` | Hourly sync, write-back queue, scheduled jobs | Inngest Dashboard. Local dev: `npx inngest-cli@latest dev`. |
-| `SUPABASE_SERVICE_ROLE_KEY` | Server-only sync writes that need to bypass RLS | Supabase Dashboard → Settings → API. **Never expose to the browser.** |
-| `CRON_SECRET` + `EMAIL_UNSUBSCRIBE_SECRET` | Securing cron endpoints + HMAC unsubscribe tokens | Generate fresh: `openssl rand -base64 32`. |
+Already configured (verified via `/api/health`): `GLOFOX_API_KEY`,
+`GLOFOX_API_TOKEN`, `GLOFOX_BRANCH_ID`, `GLOFOX_NAMESPACE`,
+`ANTHROPIC_API_KEY`, `NEXT_PUBLIC_SUPABASE_URL`,
+`NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_SERVICE_ROLE_KEY`,
+`CRON_SECRET`, `EMAIL_UNSUBSCRIBE_SECRET`, `INNGEST_DEV` (local-only).
+
+Still needed before production cutover:
+
+| Item | Needed for | How to unblock | Priority |
+|---|---|---|---|
+| `INNGEST_SIGNING_KEY` + `INNGEST_EVENT_KEY` | Hourly sync, daily AI briefing cron, scheduled jobs (registered functions: `daily-briefing`, `briefing-on-request`, `hourly-glofox-sync`, `sync-on-request`) | Inngest Dashboard → Settings → Manage. Local dev: `npx inngest-cli@latest dev` — for local testing only the `INNGEST_DEV=1` env var is needed (already in `.env.local`). | **After Playwright phase** — same wave as Resend. Until set, scheduled work doesn't fire in deployed envs (the registration handler is healthy on its own). |
+| `RESEND_API_KEY` + `RESEND_WEBHOOK_SECRET` | Campaign sends + delivery tracking | Resend Dashboard. Webhook is `/api/webhooks/resend`. | **After Playwright phase** — campaign send currently surfaces "Pending Resend integration"; recipients still persist to `campaign_recipients`. |
+| `STRIPE_SECRET_KEY` + `STRIPE_WEBHOOK_SECRET` + `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` | Refunds, subscription updates, dunning retries | Stripe Dashboard → Developers → API keys + Webhooks. Webhook endpoint is `/api/webhooks/stripe`. | **Deferred to post-testing phase.** |
+
+## Local-dev caveat
+
+`INNGEST_DEV=1` in `.env.local` disables signing-key verification on
+`/api/inngest`, and the proxy whitelists `/api/inngest` so it isn't
+cookie-gated. In dev that means anything that can curl `localhost:3000`
+can invoke a registered Inngest function (briefing generation, Glofox
+sync) without auth. Real prod creds are in `.env.local` for live data,
+so a rogue script on localhost could burn API quota. Production has no
+`INNGEST_DEV=1` and signing-key validation is active — this is a
+local-dev-only consideration. Do not enable `INNGEST_DEV=1` in any
+deployed environment.
 
 ## One-time setup tasks
 
@@ -43,10 +59,14 @@ and **how to unblock**.
 
 ## Tests + observability
 
-- [ ] **Playwright E2E** — port the existing 70-spec suite from the
-      original repo. Specs live in `e2e/` (placeholder).
-- [ ] **Vitest unit tests** — primarily for `lib/glofox/transformers.ts`.
-- [ ] **Sentry / OTEL hooks** — wire once we move to Netlify.
+- [x] **Vitest unit tests** — `tests/glofox/transformers.test.ts` +
+      `tests/utils.test.ts` (20 specs). Run with `npm test`.
+- [x] **Playwright E2E smoke** — `e2e/smoke.spec.ts` covers all routes
+      via `TEST_AUTH_BYPASS=1`. Run with `npm run e2e`.
+- [ ] **Sentry / OTEL hooks** — instrumentation hooks not yet wired.
+      Recommendation: add `instrumentation.ts` at the project root
+      with Sentry's Next.js SDK + a custom OTEL exporter for the API
+      routes once a tracing backend is chosen.
 
 ## Open product questions (from HANDOFF §6)
 

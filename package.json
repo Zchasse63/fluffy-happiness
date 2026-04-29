@@ -3,31 +3,43 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "env -u ANTHROPIC_API_KEY -u ANTHROPIC_BASE_URL NEXT_TELEMETRY_DISABLED=1 next dev",
     "build": "next build",
-    "start": "next start"
+    "start": "env -u ANTHROPIC_API_KEY -u ANTHROPIC_BASE_URL NEXT_TELEMETRY_DISABLED=1 next start",
+    "smoke": "node scripts/smoke.mjs",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "e2e": "playwright test",
+    "e2e:install": "playwright install --with-deps chromium",
+    "analyze": "ANALYZE=true next build"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.91.1",
     "@supabase/ssr": "^0.10.2",
     "@supabase/supabase-js": "^2.105.0",
-    "class-variance-authority": "^0.7.1",
-    "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
-    "lucide-react": "^1.11.0",
+    "inngest": "^4.2.5",
     "next": "16.2.4",
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "stripe": "^22.1.0",
-    "tailwind-merge": "^3.5.0",
     "zod": "^4.3.6"
   },
   "devDependencies": {
+    "@next/bundle-analyzer": "^16.2.4",
+    "@playwright/test": "^1.59.1",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@vitest/coverage-v8": "^4.1.5",
+    "@vitest/ui": "^4.1.5",
+    "dotenv": "^17.4.2",
+    "jsdom": "^29.1.0",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^4.1.5"
   }
 }

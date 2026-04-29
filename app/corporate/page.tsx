@@ -1,25 +1,39 @@
 /*
  * Corporate — B2B accounts, group bookings, and corporate event tracking.
+ * Live from `corporate_accounts` (added in migration 0012). Members
+ * link via `members.corporate_account_id`. Fixture fallback when no
+ * accounts have been created yet.
  */
 
+export const dynamic = "force-dynamic";
+
+import { NewCorporateAccountButton } from "@/components/corporate/new-account-button";
+import { EmptyTableState } from "@/components/empty-state";
 import { Icon } from "@/components/icon";
 import { PageHero, SectionHead } from "@/components/primitives";
+import { ToneBadge } from "@/components/status-pill";
+import {
+  loadCorporateAccounts,
+  loadCorporateUpcomingEvents,
+} from "@/lib/data/corporate";
 import { formatCurrency } from "@/lib/utils";
 
-const ACCOUNTS = [
-  { id: "co1", name: "Cigar City Brewing", contact: "Mark Ortega", monthly: 12, ytdCents: 168000, status: "active" as const },
-  { id: "co2", name: "Tampa General Health", contact: "Lin Chen", monthly: 8, ytdCents: 122400, status: "active" as const },
-  { id: "co3", name: "Outpost Coffee Roasters", contact: "Sasha Bell", monthly: 4, ytdCents: 41600, status: "active" as const },
-  { id: "co4", name: "Ybor Architecture Co.", contact: "Theo Park", monthly: 0, ytdCents: 9600, status: "paused" as const },
-];
+const STATUS_TONE: Record<
+  "active" | "paused" | "cancelled",
+  { fg: string; soft: string }
+> = {
+  active: { fg: "var(--pos)", soft: "var(--pos-soft)" },
+  paused: { fg: "var(--text-2)", soft: "var(--surface-3)" },
+  cancelled: { fg: "var(--neg)", soft: "var(--neg-soft)" },
+};
 
-const EVENTS = [
-  { id: "ev1", company: "Cigar City Brewing", title: "Quarterly team session", date: "Apr 25 · 6 PM", guests: 18, status: "scheduled" as const },
-  { id: "ev2", company: "Tampa General Health", title: "Wellness Wednesday", date: "Apr 23 · 7 PM", guests: 12, status: "scheduled" as const },
-  { id: "ev3", company: "Outpost Coffee Roasters", title: "Founders day", date: "May 14 · 6 PM", guests: 8, status: "scheduled" as const },
-];
+export default async function CorporatePage() {
+  const [accounts, events] = await Promise.all([
+    loadCorporateAccounts(),
+    loadCorporateUpcomingEvents(),
+  ]);
+  const activeCount = accounts.filter((a) => a.status === "active").length;
 
-export default function CorporatePage() {
   return (
     <>
       <PageHero
@@ -31,9 +45,7 @@ export default function CorporatePage() {
             <button type="button" className="btn btn-ghost hov">
               <Icon name="download" size={13} /> Export
             </button>
-            <button type="button" className="btn btn-primary hov">
-              <Icon name="plus" size={13} /> New account
-            </button>
+            <NewCorporateAccountButton />
           </>
         }
       />
@@ -47,101 +59,163 @@ export default function CorporatePage() {
         }}
       >
         <div className="card" style={{ padding: 0, overflow: "hidden" }}>
-          <SectionHead right={<span className="mono text-3" style={{ fontSize: 10.5, letterSpacing: "0.1em", textTransform: "uppercase" }}>4 active</span>}>
-            <span style={{ padding: "0 18px" }}>Accounts</span>
-          </SectionHead>
-          <table style={{ width: "100%", borderCollapse: "collapse" }}>
-            <thead>
-              <tr
+          <SectionHead
+            right={
+              <span
+                className="mono text-3"
                 style={{
-                  background: "var(--surface-2)",
-                  borderTop: "1px solid var(--border)",
-                  borderBottom: "1px solid var(--border)",
+                  fontSize: 10.5,
+                  letterSpacing: "0.1em",
+                  textTransform: "uppercase",
                 }}
               >
-                {[
-                  ["Company", "left"],
-                  ["Primary contact", "left"],
-                  ["Monthly bookings", "right"],
-                  ["YTD revenue", "right"],
-                  ["Status", "left"],
-                ].map(([label, align], i) => (
-                  <th
-                    key={i}
-                    style={{
-                      textAlign: align as "left" | "right",
-                      padding: "12px 16px",
-                      fontFamily: "var(--mono)",
-                      fontSize: 10,
-                      letterSpacing: "0.12em",
-                      textTransform: "uppercase",
-                      color: "var(--text-3)",
-                      fontWeight: 600,
-                    }}
-                  >
-                    {label}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {ACCOUNTS.map((a) => (
-                <tr key={a.id} style={{ borderBottom: "1px solid var(--border)" }}>
-                  <td style={{ padding: "14px 16px", fontSize: 14, fontWeight: 600 }}>
-                    {a.name}
-                  </td>
-                  <td style={{ padding: "14px 16px", fontSize: 13 }}>{a.contact}</td>
-                  <td className="mono" style={{ padding: "14px 16px", textAlign: "right" }}>
-                    {a.monthly}
-                  </td>
-                  <td className="mono" style={{ padding: "14px 16px", textAlign: "right", fontWeight: 600 }}>
-                    {formatCurrency(a.ytdCents)}
-                  </td>
-                  <td style={{ padding: "14px 16px" }}>
-                    <span
-                      className="badge"
+                {activeCount} active
+              </span>
+            }
+          >
+            <span style={{ padding: "0 18px" }}>Accounts</span>
+          </SectionHead>
+          {accounts.length === 0 ? (
+            <EmptyTableState>
+              No corporate accounts yet. Create your first to start tracking
+              member sponsorships and group bookings.
+            </EmptyTableState>
+          ) : (
+            <table style={{ width: "100%", borderCollapse: "collapse" }}>
+              <thead>
+                <tr
+                  style={{
+                    background: "var(--surface-2)",
+                    borderTop: "1px solid var(--border)",
+                    borderBottom: "1px solid var(--border)",
+                  }}
+                >
+                  {[
+                    ["Company", "left"],
+                    ["Primary contact", "left"],
+                    ["Members", "right"],
+                    ["YTD revenue", "right"],
+                    ["Status", "left"],
+                  ].map(([label, align], i) => (
+                    <th
+                      key={i}
                       style={{
-                        background:
-                          a.status === "active"
-                            ? "var(--pos-soft)"
-                            : "var(--surface-3)",
-                        color: a.status === "active" ? "var(--pos)" : "var(--text-2)",
+                        textAlign: align as "left" | "right",
+                        padding: "12px 16px",
+                        fontFamily: "var(--mono)",
+                        fontSize: 10,
+                        letterSpacing: "0.12em",
+                        textTransform: "uppercase",
+                        color: "var(--text-3)",
+                        fontWeight: 600,
                       }}
                     >
-                      {a.status}
-                    </span>
-                  </td>
+                      {label}
+                    </th>
+                  ))}
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {accounts.map((a) => {
+                  const tone = STATUS_TONE[a.status];
+                  return (
+                    <tr
+                      key={a.id}
+                      style={{ borderBottom: "1px solid var(--border)" }}
+                    >
+                      <td
+                        style={{
+                          padding: "14px 16px",
+                          fontSize: 14,
+                          fontWeight: 600,
+                        }}
+                      >
+                        {a.name}
+                      </td>
+                      <td style={{ padding: "14px 16px", fontSize: 13 }}>
+                        {a.contact}
+                      </td>
+                      <td
+                        className="mono"
+                        style={{ padding: "14px 16px", textAlign: "right" }}
+                      >
+                        {a.memberCount}
+                      </td>
+                      <td
+                        className="mono"
+                        style={{
+                          padding: "14px 16px",
+                          textAlign: "right",
+                          fontWeight: 600,
+                        }}
+                      >
+                        {formatCurrency(a.ytdRevenueCents)}
+                      </td>
+                      <td style={{ padding: "14px 16px" }}>
+                        <ToneBadge tone={tone}>{a.status}</ToneBadge>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
         </div>
 
         <div className="card">
           <SectionHead>Upcoming events</SectionHead>
-          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            {EVENTS.map((e) => (
-              <div
-                key={e.id}
-                style={{
-                  padding: 14,
-                  borderRadius: 12,
-                  background: "var(--surface-2)",
-                  border: "1px solid var(--border)",
-                }}
-              >
-                <div className="mono text-3" style={{ fontSize: 10.5, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 4 }}>
-                  {e.date}
+          {events.length === 0 ? (
+            <div
+              style={{
+                padding: "12px 0",
+                color: "var(--text-2)",
+                fontSize: 12.5,
+                lineHeight: 1.5,
+              }}
+            >
+              Group event tracking arrives in the next iteration. For now,
+              schedule corporate sessions on the regular calendar with the
+              member roster pre-tagged.
+            </div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              {events.map((e) => (
+                <div
+                  key={e.id}
+                  style={{
+                    padding: 14,
+                    borderRadius: 12,
+                    background: "var(--surface-2)",
+                    border: "1px solid var(--border)",
+                  }}
+                >
+                  <div
+                    className="mono text-3"
+                    style={{
+                      fontSize: 10.5,
+                      letterSpacing: "0.1em",
+                      textTransform: "uppercase",
+                      marginBottom: 4,
+                    }}
+                  >
+                    {e.date}
+                  </div>
+                  <div
+                    style={{
+                      fontSize: 14,
+                      fontWeight: 600,
+                      marginBottom: 4,
+                    }}
+                  >
+                    {e.title}
+                  </div>
+                  <div className="muted" style={{ fontSize: 12 }}>
+                    {e.company} · {e.guests} guests
+                  </div>
                 </div>
-                <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 4 }}>
-                  {e.title}
-                </div>
-                <div className="muted" style={{ fontSize: 12 }}>
-                  {e.company} · {e.guests} guests
-                </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </>

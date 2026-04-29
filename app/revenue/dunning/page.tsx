@@ -1,21 +1,26 @@
 /*
  * Revenue · Dunning — failed payment recovery queue. One row per
  * outstanding charge with retry / update-card / contact-member actions.
+ *
+ * Live data via `loadDunning`; falls back to fixtures when DB is empty.
  */
+
+export const dynamic = "force-dynamic";
 
 import { Avatar } from "@/components/avatar";
 import { Icon } from "@/components/icon";
 import { PageHero, SectionHead } from "@/components/primitives";
-import { DUNNING } from "@/lib/fixtures";
+import { loadDunning } from "@/lib/data/revenue";
 import { formatCurrency } from "@/lib/utils";
 
-export default function RevenueDunningPage() {
-  const totalAtRisk = DUNNING.reduce((s, d) => s + d.amountCents, 0);
+export default async function RevenueDunningPage() {
+  const dunning = await loadDunning();
+  const totalAtRisk = dunning.reduce((s, d) => s + d.amountCents, 0);
 
   return (
     <>
       <PageHero
-        meta={`${DUNNING.length} open · ${formatCurrency(totalAtRisk)} at risk`}
+        meta={`${dunning.length} open · ${formatCurrency(totalAtRisk)} at risk`}
         title="Dunning"
         subtitle={
           <>
@@ -37,7 +42,7 @@ export default function RevenueDunningPage() {
       />
 
       <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-        {DUNNING.map((d, i) => (
+        {dunning.map((d, i) => (
           <div
             key={d.id}
             className="card"

@@ -1,31 +1,17 @@
 /*
  * Operations · Facilities — equipment list with status, maintenance schedule,
- * and capacity config.
+ * and capacity config. Live from `facility_resources` + most-recent
+ * `facility_maintenance` rows. Falls back to fixture set when empty.
  */
+
+export const dynamic = "force-dynamic";
 
 import { Icon } from "@/components/icon";
 import { PageHero } from "@/components/primitives";
+import { loadFacilities } from "@/lib/data/facilities";
 
-type Resource = {
-  id: string;
-  name: string;
-  capacity: number;
-  status: "live" | "maintenance" | "offline";
-  lastService: string;
-  nextService: string;
-  notes?: string;
-};
-
-const RESOURCES: Resource[] = [
-  { id: "sauna-1", name: "Sauna · Cedar", capacity: 12, status: "live", lastService: "Apr 8", nextService: "May 6", notes: "Heater swap due in 6 weeks" },
-  { id: "sauna-2", name: "Sauna · Hemlock", capacity: 12, status: "live", lastService: "Apr 8", nextService: "May 6" },
-  { id: "sauna-3", name: "Sauna · Infrared cabin", capacity: 4, status: "maintenance", lastService: "Apr 19", nextService: "Apr 22", notes: "Bench refinish in progress" },
-  { id: "plunge-1", name: "Cold plunge · A", capacity: 6, status: "live", lastService: "Apr 12", nextService: "Apr 26" },
-  { id: "plunge-2", name: "Cold plunge · B", capacity: 6, status: "live", lastService: "Apr 12", nextService: "Apr 26", notes: "New chiller installed Apr 12" },
-  { id: "shower-room", name: "Shower room", capacity: 4, status: "live", lastService: "Apr 15", nextService: "May 13" },
-];
-
-export default function FacilitiesPage() {
+export default async function FacilitiesPage() {
+  const RESOURCES = await loadFacilities();
   return (
     <>
       <PageHero

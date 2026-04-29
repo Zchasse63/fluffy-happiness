@@ -36,7 +36,7 @@ export async function POST(request: Request) {
       p_class_instance_id: body.classInstanceId,
       p_member_id: body.memberId,
       p_studio_id: profile.studio_id,
-      p_credit_type: body.creditType ?? null,
+      p_credit_type: body.creditType ?? undefined,
       p_source: body.source,
     });
     if (error) {

@@ -2,15 +2,22 @@
  * Members · Segments — saved segments with member counts, computation
  * type (auto vs manual), and a sample preview. Clicking a segment
  * filters the directory.
+ *
+ * Counts come from `loadSegmentCounts`; falls back to fixtures.
  */
+
+export const dynamic = "force-dynamic";
 
 import Link from "next/link";
 
 import { Icon } from "@/components/icon";
 import { PageHero, SectionHead } from "@/components/primitives";
+import { loadSegmentCounts } from "@/lib/data/segments";
 import { SEGMENTS } from "@/lib/fixtures";
 
-export default function MembersSegmentsPage() {
+export default async function MembersSegmentsPage() {
+  const counts = await loadSegmentCounts();
+
   return (
     <>
       <PageHero
@@ -100,7 +107,7 @@ export default function MembersSegmentsPage() {
                   className="serif"
                   style={{ fontSize: 28, letterSpacing: "-0.02em" }}
                 >
-                  {s.count.toLocaleString()}
+                  {(counts[s.id] ?? s.count).toLocaleString()}
                 </div>
                 <div
                   className="mono text-3"

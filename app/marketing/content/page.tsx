@@ -1,12 +1,21 @@
 /*
  * Marketing · Content — feed of social/blog posts with engagement stats.
  * Channels: Instagram, Threads, Email digest, Blog.
+ *
+ * Live from `content_posts`. Fixture below is the fallback when the
+ * table is empty — keeps the page useful in dev before any real
+ * content has been authored.
  */
 
-import { Icon } from "@/components/icon";
-import { PageHero, SectionHead } from "@/components/primitives";
+export const dynamic = "force-dynamic";
 
-const POSTS = [
+import { Icon, type IconName } from "@/components/icon";
+import { PageHero, SectionHead } from "@/components/primitives";
+import { loadContentPosts, type ContentPost } from "@/lib/data/content";
+
+type FixturePost = ContentPost & { icon: IconName };
+
+const FIXTURE_POSTS: FixturePost[] = [
   {
     id: "p1",
     channel: "Instagram",
@@ -45,7 +54,28 @@ const POSTS = [
   },
 ];
 
-export default function ContentPage() {
+function iconForChannel(channel: string): IconName {
+  switch (channel.toLowerCase()) {
+    case "blog":
+      return "edit";
+    case "instagram":
+    case "threads":
+    case "twitter":
+    case "x":
+      return "globe";
+    case "email":
+    case "newsletter":
+      return "mail";
+    default:
+      return "chat";
+  }
+}
+
+export default async function ContentPage() {
+  const live = await loadContentPosts();
+  const POSTS: Array<ContentPost & { icon: IconName }> = live.length
+    ? live.map((p) => ({ ...p, icon: iconForChannel(p.channel) }))
+    : FIXTURE_POSTS;
   return (
     <>
       <PageHero

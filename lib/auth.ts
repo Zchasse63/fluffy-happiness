@@ -6,6 +6,7 @@
  * the route handler can translate into a 401/403.
  */
 
+import { STUDIO_ID } from "@/lib/constants";
 import { createSupabaseServer } from "@/lib/supabase/server";
 
 export type AuthProfile = {
@@ -26,7 +27,32 @@ export class AuthError extends Error {
   }
 }
 
+/**
+ * Hard guard: refuse to honor the test bypass in production. A bypass
+ * env var leaking into a deployed environment would grant anonymous
+ * owner access to the entire studio. Crashing at import time is the
+ * lesser evil.
+ */
+if (
+  process.env.TEST_AUTH_BYPASS === "1" &&
+  process.env.NODE_ENV === "production"
+) {
+  throw new Error(
+    "TEST_AUTH_BYPASS=1 is not allowed in production. Remove it from your environment immediately.",
+  );
+}
+
+const TEST_PROFILE: AuthProfile = {
+  id: "00000000-0000-0000-0000-000000000001",
+  studio_id: STUDIO_ID,
+  email: "test@meridian.local",
+  full_name: "Test Owner",
+  roles: ["owner"],
+};
+
 export async function getAuthProfile(): Promise<AuthProfile | null> {
+  if (process.env.TEST_AUTH_BYPASS === "1") return TEST_PROFILE;
+
   const supabase = await createSupabaseServer();
   const {
     data: { user },

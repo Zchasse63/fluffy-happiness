@@ -1,10 +1,23 @@
 /*
- * Marketing · Automations — flow cards with enrollment stats. The flow
- * editor is a future build (ReactFlow + step config panel).
+ * Marketing · Automations — flow cards with enrollment stats. Reads
+ * live from `automation_flows` + counts from `automation_enrollments`,
+ * falls back to fixtures when zero rows.
+ *
+ * Flow EXECUTION (events firing on triggers, step delivery) is the
+ * next iteration — needs Inngest event listeners. The records this
+ * page lets operators manage are durable, so when execution lands
+ * no UI rework is needed.
  */
 
+export const dynamic = "force-dynamic";
+
+import {
+  AutomationToggle,
+  SeedAutomationsButton,
+} from "@/components/automations/automation-actions";
 import { Icon } from "@/components/icon";
 import { PageHero } from "@/components/primitives";
+import { loadAutomationFlows } from "@/lib/data/automations";
 import { AUTOMATIONS } from "@/lib/fixtures";
 
 const TRIGGER_LABEL: Record<string, string> = {
@@ -20,7 +33,14 @@ const TRIGGER_LABEL: Record<string, string> = {
   milestone: "On milestone",
 };
 
-export default function AutomationsPage() {
+export default async function AutomationsPage() {
+  const flows = await loadAutomationFlows();
+  // Live state: empty DB returns the fixtures, so deep-equal to that
+  // means the studio still has zero seeded flows.
+  const isFixtureFallback =
+    flows.length === AUTOMATIONS.length &&
+    flows.every((f, i) => f.id === AUTOMATIONS[i].id);
+
   return (
     <>
       <PageHero
@@ -32,9 +52,13 @@ export default function AutomationsPage() {
             <button type="button" className="btn btn-ghost hov">
               <Icon name="download" size={13} /> Export
             </button>
-            <button type="button" className="btn btn-primary hov">
-              <Icon name="plus" size={13} /> New automation
-            </button>
+            {isFixtureFallback ? (
+              <SeedAutomationsButton />
+            ) : (
+              <button type="button" className="btn btn-primary hov">
+                <Icon name="plus" size={13} /> New automation
+              </button>
+            )}
           </>
         }
       />
@@ -46,7 +70,7 @@ export default function AutomationsPage() {
           gap: 14,
         }}
       >
-        {AUTOMATIONS.map((a) => (
+        {flows.map((a) => (
           <div key={a.id} className="card" style={{ padding: 22 }}>
             <div
               className="row"
@@ -142,13 +166,9 @@ export default function AutomationsPage() {
                 <div className="metric-label">total enrolled</div>
               </div>
               <div className="row" style={{ gap: 8 }}>
-                <button
-                  type="button"
-                  className="btn btn-ghost hov"
-                  style={{ fontSize: 12 }}
-                >
-                  <Icon name="edit" size={12} /> Edit
-                </button>
+                {!isFixtureFallback && (
+                  <AutomationToggle id={a.id} status={a.status} />
+                )}
               </div>
             </div>
           </div>

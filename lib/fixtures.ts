@@ -8,6 +8,8 @@
  * those routes; the shapes here are the contract.
  */
 
+import type { Insight, Kpi } from "@/components/primitives";
+
 // ─── Classes / Schedule ────────────────────────────────────────────────
 
 export type ClassKind =
@@ -63,6 +65,8 @@ export const KIND_META: Record<
 };
 
 export type ClassSlot = {
+  /** DB id when sourced from `class_instances`; absent for fixture slots. */
+  id?: string;
   time: string; // "HH:MM" 24h
   kind: ClassKind;
   trainerId: string | null;
@@ -261,6 +265,18 @@ export const SEGMENTS = [
 
 export type RevenueKind = "membership" | "class_pack" | "retail" | "gift_card" | "walk_in" | "corporate";
 
+export const TRANSACTION_KIND_META: Record<
+  RevenueKind,
+  { fg: string; soft: string; label: string }
+> = {
+  membership: { fg: "var(--accent-deep)", soft: "var(--accent-soft)", label: "Membership" },
+  class_pack: { fg: "var(--teal)", soft: "var(--teal-soft)", label: "Pack" },
+  retail: { fg: "var(--cobalt)", soft: "var(--cobalt-soft)", label: "Retail" },
+  gift_card: { fg: "var(--gold)", soft: "var(--gold-soft)", label: "Gift card" },
+  walk_in: { fg: "var(--moss)", soft: "var(--moss-soft)", label: "Walk-in" },
+  corporate: { fg: "var(--plum)", soft: "var(--plum-soft)", label: "Corporate" },
+};
+
 export type Transaction = {
   id: string;
   occurred: string;
@@ -390,4 +406,295 @@ export const AUTOMATIONS: Automation[] = [
   { id: "a4", name: "Credit expiry · 7-day", trigger: "credit_expiry", steps: 2, enrolled: 64, active: 8, status: "active" },
   { id: "a5", name: "Failed payment recovery", trigger: "failed_payment", steps: 4, enrolled: 14, active: 3, status: "active" },
   { id: "a6", name: "First-class follow-up", trigger: "no_show", steps: 2, enrolled: 5, active: 2, status: "paused" },
+];
+
+// ─── Command Center ────────────────────────────────────────────────────
+
+export const COMMAND_INSIGHTS: Insight[] = [
+  {
+    rank: "P1",
+    tone: "neg",
+    kicker: "Class below threshold",
+    headline: "Whitney's 7 PM Guided is at 2/10.",
+    data: [
+      ["Booked", "2"],
+      ["Waitlist", "0"],
+      ["Last week", "9/10"],
+    ],
+    body:
+      "Evening Guided usually fills by Monday. Two canceled on Sunday without rebooking — likely the weather flip.",
+    action: "Promote on Instagram",
+    altAction: "Notify Wed regulars",
+    href: "/schedule/calendar",
+  },
+  {
+    rank: "P2",
+    tone: "warn",
+    kicker: "Credits expiring",
+    headline: "4 members have credit packs expiring this week.",
+    data: [
+      ["Unused credits", "11"],
+      ["At-risk MRR", "$560"],
+      ["Conversion when reminded", "58%"],
+    ],
+    body:
+      "Alex Park (4), Sim Harmon (3), Ben Kniesly (2), Whitney regulars (2) — all expire by Sunday.",
+    action: "Send expiry campaign",
+    altAction: "Offer 2-wk extension",
+    href: "/marketing/campaigns",
+  },
+  {
+    rank: "P3",
+    tone: "info",
+    kicker: "Revenue anomaly",
+    headline: "Monday revenue was $178 — down 34% vs last Monday.",
+    data: [
+      ["Yesterday", "$178"],
+      ["Prior Mon", "$269"],
+      ["Trend", "↓ 3rd dip"],
+    ],
+    body:
+      "Driven by one canceled corporate booking (Cigar City). Not a pattern yet, but the 3rd Monday dip in a row.",
+    action: "Open analytics",
+    altAction: "Dismiss",
+    href: "/analytics",
+  },
+];
+
+export const COMMAND_KPIS: Kpi[] = [
+  {
+    label: "Revenue · today",
+    value: "$234",
+    delta: "+12.0%",
+    foot: "vs last Tue",
+    dot: "var(--accent)",
+    spark: [120, 180, 95, 220, 140, 260, 234],
+  },
+  {
+    label: "Bookings",
+    value: "27",
+    delta: "+4",
+    foot: "6 still open",
+    dot: "var(--teal)",
+    spark: [18, 22, 19, 24, 21, 26, 27],
+  },
+  {
+    label: "Walk-ins",
+    value: "2",
+    delta: "±0",
+    foot: "rolling 7d",
+    dot: "var(--cobalt)",
+    spark: [1, 3, 2, 2, 4, 2, 2],
+  },
+  {
+    label: "No-shows",
+    value: "1",
+    delta: "-2",
+    foot: "Sim Harmon 5p",
+    dot: "var(--plum)",
+    spark: [2, 3, 1, 2, 3, 1, 1],
+  },
+  {
+    label: "Attendance rate",
+    value: "94%",
+    delta: "+3.1%",
+    foot: "last 30 days",
+    dot: "var(--moss)",
+    spark: [88, 90, 89, 92, 91, 93, 94],
+  },
+];
+
+export type FocusItemFixture = {
+  p: "P1" | "P2" | "P3";
+  pc: "neg" | "warn" | "info";
+  title: string;
+  meta: string;
+  cta: string;
+  href: string;
+};
+
+export const FOCUS_QUEUE: FocusItemFixture[] = [
+  {
+    p: "P1",
+    pc: "neg",
+    title: "Failed payment · Ben Kniesly",
+    meta: "Card expired 04/2026 · $85 / Monthly Unlimited",
+    cta: "Retry",
+    href: "/revenue/dunning",
+  },
+  {
+    p: "P1",
+    pc: "neg",
+    title: "Failed payment · Trent Lott",
+    meta: "Insufficient funds · $165 / 10-pack",
+    cta: "Retry",
+    href: "/revenue/dunning",
+  },
+  {
+    p: "P1",
+    pc: "neg",
+    title: "Chargeback filed · Dana Ortiz",
+    meta: "Respond by Apr 24 · Stripe dispute #d_1a2",
+    cta: "Respond",
+    href: "/revenue/transactions",
+  },
+  {
+    p: "P2",
+    pc: "warn",
+    title: "Whitney's 7 PM Guided — 2/10",
+    meta: "Cancel, promote, or swap trainer",
+    cta: "Promote",
+    href: "/schedule/calendar",
+  },
+  {
+    p: "P2",
+    pc: "warn",
+    title: "Credits expiring · 4 members",
+    meta: "11 credits · $560 at-risk MRR",
+    cta: "Remind",
+    href: "/marketing/campaigns",
+  },
+  {
+    p: "P3",
+    pc: "info",
+    title: "Lead follow-ups · 3 stale",
+    meta: "No touch in 5+ days · avg score 72",
+    cta: "Review",
+    href: "/marketing/leads",
+  },
+  {
+    p: "P3",
+    pc: "info",
+    title: "Waiver expired · Maya Chen",
+    meta: "Signed Apr 2025 · next class Fri",
+    cta: "Re-send",
+    href: "/operations/waivers",
+  },
+];
+
+export type TodaySlotFixture = {
+  time: string;
+  dur: string;
+  kind: string;
+  trainer: string;
+  cap: string;
+  fill: number;
+  tone: "ok" | "mid" | "low";
+  state: "live" | "next" | "" | "!";
+};
+
+export const TODAY_SCHEDULE: TodaySlotFixture[] = [
+  { time: "11:00 AM", dur: "50m", kind: "Open Sauna", trainer: "—", cap: "7/12", fill: 58, tone: "ok", state: "live" },
+  { time: "1:00 PM", dur: "50m", kind: "Cold Plunge", trainer: "Ben Kniesly", cap: "4/6", fill: 67, tone: "ok", state: "next" },
+  { time: "3:00 PM", dur: "50m", kind: "Open Sauna", trainer: "—", cap: "9/12", fill: 75, tone: "ok", state: "" },
+  { time: "5:00 PM", dur: "50m", kind: "Open Sauna", trainer: "—", cap: "7/12", fill: 58, tone: "ok", state: "" },
+  { time: "6:00 PM", dur: "50m", kind: "Guided Sauna", trainer: "Trent Lott", cap: "6/10", fill: 60, tone: "mid", state: "" },
+  { time: "7:00 PM", dur: "60m", kind: "Guided Sauna", trainer: "Whitney Abrams", cap: "2/10", fill: 20, tone: "low", state: "!" },
+  { time: "8:15 PM", dur: "45m", kind: "Cold Plunge", trainer: "Ben Kniesly", cap: "5/6", fill: 83, tone: "ok", state: "" },
+];
+
+export type ActivityEntry = {
+  t: string;
+  who: string;
+  what: string;
+  tag: string;
+  tone: "pos" | "neg" | "warn" | "info" | "muted";
+};
+
+export const ACTIVITY: ActivityEntry[] = [
+  { t: "10:38 AM", who: "Alex Park", what: "Booked 6 PM Guided Sauna", tag: "+1", tone: "pos" },
+  { t: "10:12 AM", who: "Sim Harmon", what: "Checked in · 11 AM Open", tag: "In", tone: "pos" },
+  { t: "09:47 AM", who: "Ben Kniesly", what: "Payment failed · Monthly Unlimited", tag: "−$85", tone: "neg" },
+  { t: "09:30 AM", who: "Meridian", what: "Sent “Weekend Warriors” campaign", tag: "94%", tone: "info" },
+  { t: "08:55 AM", who: "Maya Chen", what: "Purchased 10-pack credit", tag: "+$165", tone: "pos" },
+  { t: "08:02 AM", who: "Whitney Abrams", what: "Clocked in", tag: "Staff", tone: "muted" },
+  { t: "Yest 9 PM", who: "Dana Ortiz", what: "No-show · 8 PM Cold Plunge", tag: "Strike", tone: "warn" },
+  { t: "Yest 7 PM", who: "Cigar City Co.", what: "Canceled corporate event (Apr 25)", tag: "−$480", tone: "neg" },
+];
+
+export const ACTIVITY_TONE_TO_COLOR: Record<ActivityEntry["tone"], string> = {
+  pos: "var(--pos)",
+  neg: "var(--neg)",
+  warn: "var(--warn)",
+  info: "var(--cobalt)",
+  muted: "var(--text-3)",
+};
+
+export type WeekReviewRow = {
+  label: string;
+  now: string;
+  prior: string;
+  delta: string;
+  tone: "pos" | "neg";
+};
+
+export const WEEK_REVIEW: WeekReviewRow[] = [
+  { label: "Revenue", now: "$412", prior: "$368", delta: "+12.0%", tone: "pos" },
+  { label: "Classes booked", now: "44", prior: "41", delta: "+7.3%", tone: "pos" },
+  { label: "New members", now: "3", prior: "5", delta: "-40.0%", tone: "neg" },
+  { label: "Credits used", now: "38", prior: "34", delta: "+11.8%", tone: "pos" },
+  { label: "Avg fill", now: "71%", prior: "68%", delta: "+3.0 pts", tone: "pos" },
+  { label: "Trainer hours", now: "12.5", prior: "12.0", delta: "+4.2%", tone: "pos" },
+];
+
+// ─── Member Profile ───────────────────────────────────────────────────
+
+export type MemberProfileTab =
+  | "overview"
+  | "bookings"
+  | "payments"
+  | "activity"
+  | "wellness"
+  | "notes";
+
+export const MEMBER_PROFILE_TABS: MemberProfileTab[] = [
+  "overview",
+  "bookings",
+  "payments",
+  "activity",
+  "wellness",
+  "notes",
+];
+
+export type MemberProfileBookingRow = {
+  time: string;
+  kind: string;
+  trainer: string;
+  status: "booked" | "checked-in" | "no-show";
+};
+
+export const MEMBER_PROFILE_BOOKINGS: MemberProfileBookingRow[] = [
+  { time: "Today · 6 PM", kind: "Guided Sauna", trainer: "Trent Lott", status: "booked" },
+  { time: "Apr 19 · 5 PM", kind: "Open Sauna", trainer: "—", status: "checked-in" },
+  { time: "Apr 17 · 7 PM", kind: "Guided Sauna", trainer: "Whitney Abrams", status: "checked-in" },
+  { time: "Apr 14 · 6 PM", kind: "Open Sauna", trainer: "—", status: "no-show" },
+  { time: "Apr 12 · 8 PM", kind: "Cold Plunge", trainer: "Ben Kniesly", status: "checked-in" },
+];
+
+export type MemberProfileAiSignal = {
+  tone: string;
+  soft: string;
+  label: string;
+  body: string;
+};
+
+export const MEMBER_PROFILE_AI_SIGNALS: MemberProfileAiSignal[] = [
+  {
+    tone: "var(--pos)",
+    soft: "var(--pos-soft)",
+    label: "Visit streak",
+    body: "6 weeks · personal record territory",
+  },
+  {
+    tone: "var(--warn)",
+    soft: "var(--warn-soft)",
+    label: "Credit expiry",
+    body: "0 credits in pack — eligible for top-up nudge",
+  },
+  {
+    tone: "var(--cobalt)",
+    soft: "var(--cobalt-soft)",
+    label: "Pattern",
+    body: "Books Tue + Thu evenings — strongly attached to Whitney's class",
+  },
 ];
