@@ -1,5 +1,16 @@
 # Meridian — fresh session kickoff prompt
 
+> **Wave F closed (2026-04-29 follow-up session).** Playwright is now
+> 71/71 green. The "implausibly low pass count" was two environment
+> issues (worktree missing `.env.local`, Chromium binary not installed)
+> plus 5 real bugs: a Postgres RLS-helper recursion (fixed via migration
+> `0014_rls_helpers_security_definer` — `SECURITY DEFINER` on
+> `current_studio_id` / `current_user_roles` / `is_admin`), `authErrorResponse`
+> missing a `ZodError → 400` branch, the briefing test using GET against a
+> POST-only route, plus 5 spec-level selector / dialog-handler / page-shape
+> mismatches. Vitest 37/37, build clean, smoke 27/27. **Wave G (credential
+> cutover) is the next gate — pause for human approval before starting it.**
+
 Copy the block below into a new Claude Code session in the
 `~/Code/meridian-fresh` directory.
 
@@ -14,47 +25,48 @@ Copy the block below into a new Claude Code session in the
 > iCloud-synced and Will Bite Again.**
 
 I'm continuing the Meridian project (operator dashboard for The Sauna Guys, Tampa)
-at `~/Code/meridian-fresh`. Origin/main HEAD is `93b767e` after the iCloud-recovery
-session. The push history is:
+at `~/Code/meridian-fresh`. Run `git log --oneline -10` to see the latest history;
+origin/main was caught up at the start of this followup session, and the Wave F
+closeout commit ships migration 0014 plus the spec/auth fixes described above.
 
-- `dcc5928` — 27 commits squashed (Wave A-D + Glofox safety + handoff doc)
-- `e1cbc1a` — docs migration to ~/Code/meridian-fresh + iCloud gotcha
-- `93b767e` — **Wave F (partial)**: 9 Playwright specs + 2 vitest files
-
-**Wave F status when this handoff was written:**
-- ✅ Playwright MCP DOM-snapshots captured (login, /, members directory,
-  revenue overview, revenue transactions, marketing campaigns, settings).
-  Snapshots informed selectors in the 9 new spec files.
-- ✅ 9 new spec files in `e2e/`: auth / command-center / members / revenue /
-  schedule / marketing / operations / settings / api-health.
-- ✅ 2 new vitest files in `tests/`: cache/index.test.ts (14 tests) +
-  glofox/sync-engine.test.ts (3 tests). All 37 vitest specs pass locally
-  (20 transformers + 5 utils + 14 cache + 3 sync-engine — minus the 12 from
-  cache that aren't yet counted, depending on tree state, vitest reports 37).
-- ⚠ **Playwright run was interrupted before full pass count was visible.**
-  The list reporter showed all spec names started, but the bottom-of-output
-  summary read `5 passed (25.4s)` which is implausibly low for ~50 tests.
-  This session ended before the failures (if any) were investigated.
-  **First task next session: run `E2E_PORT=3000 npm run e2e` (or just
-  `npm run e2e` if no dev server is running) and triage failures.**
+**Wave F status (closed 2026-04-29 followup):**
+- ✅ 10 e2e spec files in `e2e/`: auth / command-center / members / revenue /
+  schedule / marketing / operations / settings / api-health / smoke. **71/71
+  passing** after the followup session's fixes.
+- ✅ 4 vitest files (`tests/{glofox/transformers,glofox/sync-engine,cache/index,utils}.test.ts`).
+  **37/37 passing.** No `.coveragePathIgnorePatterns` shenanigans — all four files run.
+- ✅ Migration 0014 (`SECURITY DEFINER` on the three RLS helper functions)
+  applied to live Supabase project `ptgeijftzfykjbiujvty`. This unblocks
+  every API route that hit the `class_instances` / `transactions` /
+  `profiles` recursion path under TEST_AUTH_BYPASS.
+- ✅ `lib/auth.ts:authErrorResponse` now maps `z.ZodError → 400` instead of
+  letting the throw bubble to a 500.
+- ⚠ **Worktree gotcha discovered:** `git worktree add` does NOT inherit
+  untracked files like `.env.local` or the Playwright Chromium cache.
+  Symptom: every Supabase page 500s, then ~66 specs cascade-fail at
+  `chrome-headless-shell` launch. Fix:
+  `ln -s ~/Code/meridian-fresh/.env.local <worktree>/.env.local && npm run e2e:install`.
+  This is the **real** explanation for the prior session's "5 passed"
+  mystery — not a flaky run, two missing local artifacts.
 
 Hard rule still in effect: **NO WRITES TO GLOFOX, EVER.** Details below.
 
 ## Read these first, in order
 
-1. `meridian/CLAUDE.md` — project conventions, design contract, gotchas. The
+1. `CLAUDE.md` — project conventions, design contract, gotchas. The
    phase status table is now R0 + R1 + R2 + R3 + R3.5 (tests/infra) all ✅;
    only R4 (cutover) waits on creds.
-2. `meridian/DEFERRED.md` — credential state. Anthropic + Glofox + Supabase
+2. `DEFERRED.md` — credential state. Anthropic + Glofox + Supabase
    service role + CRON_SECRET + EMAIL_UNSUBSCRIBE_SECRET are configured.
    Inngest + Resend are scheduled for **after the Playwright phase**. Stripe
    is fully deferred until post-testing.
-3. `meridian/RELEASE-NOTES.md` — full writeup of what shipped in items 8–32,
+3. `RELEASE-NOTES.md` — full writeup of what shipped in items 8–32,
    with the 3 schema migrations (0011–0013) summarized.
-4. `meridian/.audit/AUDIT-SUMMARY.md` — original baseline audit; 4/4 critical
+4. `.audit/AUDIT-SUMMARY.md` — original baseline audit; 4/4 critical
    and 9/10 high findings closed by the prior session's commits.
-5. `git log --oneline -30` from the meridian directory — see the 26 unpushed
-   commits.
+5. `git log --oneline -30` — see the recent commit history. (Origin/main was
+   caught up at the start of the 2026-04-29 followup session; the Wave F
+   closeout commit ships migration 0014 + spec/auth fixes.)
 
 ## Hard rules (carried forward + new)
 
@@ -119,11 +131,12 @@ forever," that's the corrupted-`node_modules` failure mode. Fix:
 
 ## Remaining work, in order
 
-### Wave E — push + production deploy (priority: do first)
+### Wave E — push + production deploy
 
-1. **Push to `origin/main`.** 26 commits sit local-only. The remote is
-   `https://github.com/Zchasse63/fluffy-happiness.git`. After push, Netlify
-   should be connected to the repo for continuous deploys.
+1. **Push to `origin/main`.** ~~26 commits sit local-only.~~ Status as of the
+   2026-04-29 followup: origin/main is caught up; Wave F closeout adds one
+   commit to push. Remote: `https://github.com/Zchasse63/fluffy-happiness.git`.
+   After push, Netlify should be connected to the repo for continuous deploys.
 2. **Connect the Netlify site to the GitHub repo.** Use the Netlify API
    (`POST /api/v1/sites/{site_id}` with `repo` config) or the dashboard:
    site_id `1e0b792c-4967-4088-a6cb-83b9523cc2e4` (account slug `zchasse63`).
@@ -294,14 +307,18 @@ quirks — `programs` and `transactions` are POST searches). Audit each one
 to confirm it's a search/report query and not a mutation. Document the
 audit in `tests/glofox/SAFETY.md` with the URL and HTTP method of every
 client method, and have it referenced in CI so any future PR that adds a
-write method has to update it.
+write method has to update it. _As of the 2026-04-29 followup session,
+SAFETY.md exists and its `grep` recipe was corrected to match the
+positional `request("POST", path, ...)` shape rather than the old
+`method: "POST"` config-object pattern; the audit covers all 10 methods._
 
 ## How to start
 
 1. `cd ~/Code/meridian-fresh`
 2. Read `CLAUDE.md`, `DEFERRED.md`, `RELEASE-NOTES.md` (in that order).
 3. `git status` and `git log --oneline -10` — confirm you're on the right
-   commit and the 26 commits ahead of `origin/main`.
+   commit. (Post-followup, origin/main is current; check the doc's status
+   header at the top for the latest landmark commit.)
 4. Push to `origin/main`. The standard `git push origin main` works in
    the user's normal terminal environment.
 5. `npm run dev` (or check if already running with `lsof -iTCP:3000`).

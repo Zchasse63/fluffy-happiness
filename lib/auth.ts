@@ -6,6 +6,8 @@
  * the route handler can translate into a 401/403.
  */
 
+import { z } from "zod";
+
 import { STUDIO_ID } from "@/lib/constants";
 import { createSupabaseServer } from "@/lib/supabase/server";
 
@@ -88,6 +90,15 @@ export async function requireRole(
 export function authErrorResponse(err: unknown) {
   if (err instanceof AuthError) {
     return Response.json({ error: err.message }, { status: err.status });
+  }
+  if (err instanceof z.ZodError) {
+    // Surface only human-readable messages — `err.issues` contains the
+    // raw `received` value and full schema path, which we don't want to
+    // echo back to a client that might be probing the API.
+    return Response.json(
+      { error: "Bad request", issues: err.issues.map((i) => i.message) },
+      { status: 400 },
+    );
   }
   console.error(err);
   return Response.json({ error: "Internal error" }, { status: 500 });

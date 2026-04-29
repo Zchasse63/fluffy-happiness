@@ -76,11 +76,15 @@ test.describe("AI routes", () => {
   test("/api/ai/briefing returns 200 (cached or fresh)", async ({
     request,
   }) => {
-    const res = await request.get("/api/ai/briefing");
+    // Route is POST-only — POST triggers cache hit (22h ai_cache TTL) or
+    // a fresh Anthropic call. Either is acceptable; we only verify the
+    // route is wired and returns a body.
+    const res = await request.post("/api/ai/briefing", {
+      data: {},
+      headers: { "content-type": "application/json" },
+    });
     expect(res.status()).toBe(200);
     const body = await res.json();
-    // Briefing shape: cached payload or live response — both return
-    // either `briefing` text or a structured object.
     expect(body).toBeDefined();
   });
 

@@ -43,9 +43,12 @@ test.describe("settings page", () => {
     request,
   }) => {
     await page.goto("/settings");
-    const integrations = page
-      .getByRole("heading", { name: "Integrations", level: 2 })
-      .locator("xpath=..");
+    // SectionHead wraps the H2 in a <div class="section-head"> — its
+    // immediate parent is that wrapper, not the <section> that holds
+    // the integration list. Scope to the enclosing <section> instead.
+    const integrations = page.locator("section", {
+      has: page.getByRole("heading", { name: "Integrations", level: 2 }),
+    });
     for (const name of [
       "Glofox",
       "Stripe",

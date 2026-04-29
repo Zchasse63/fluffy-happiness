@@ -37,6 +37,9 @@ test.describe("marketing campaigns", () => {
   test("Draft state campaigns show a Send button that triggers the campaign send route", async ({
     page,
   }) => {
+    // SendCampaignButton uses window.confirm() — auto-accept it.
+    page.on("dialog", (d) => d.accept());
+
     let sendCalled = false;
     await page.route("**/api/campaigns/*/send", async (route) => {
       sendCalled = true;
@@ -55,19 +58,11 @@ test.describe("marketing campaigns", () => {
     const sendBtn = page
       .getByRole("button", { name: "Send", exact: true })
       .first();
-    if (await sendBtn.isVisible().catch(() => false)) {
-      await sendBtn.click();
-      await page.waitForTimeout(500);
-      // A confirm dialog may appear — find any "Send" / "Confirm" button.
-      const confirm = page
-        .getByRole("button", { name: /(confirm|send now|send)/i })
-        .nth(1);
-      if (await confirm.isVisible().catch(() => false)) {
-        await confirm.click();
-      }
-      await page.waitForTimeout(500);
-      expect(sendCalled).toBe(true);
-    }
+    await expect(sendBtn).toBeVisible();
+    await sendBtn.click();
+    // The component fires the POST inside a useTransition — give it a beat.
+    await page.waitForTimeout(500);
+    expect(sendCalled).toBe(true);
   });
 });
 

@@ -68,6 +68,30 @@ deployed environment.
       with Sentry's Next.js SDK + a custom OTEL exporter for the API
       routes once a tracing backend is chosen.
 
+## Accessibility findings (deferred to the post-Wave-F audit pass)
+
+Surfaced by `feature-dev:code-reviewer` on the Wave F closeout diff
+(2026-04-29). Each is a real semantic-HTML defect that the e2e tests
+were updated to tolerate rather than enforce; the audit wave should
+either fix the markup or explicitly accept the trade-off and tighten
+the test assertions back.
+
+- [ ] **Member profile page has no `<h1>`.** `components/member-profile/profile-header.tsx`
+      renders the member name as `<span class="serif">` at 32px. Every other
+      page gets its H1 from `<PageHero>`; profile omits PageHero entirely.
+      Screen readers have no landmark for the member's name. Fix: either add
+      `<PageHero title={member.name} ... />` above the header card (consistent
+      with the rest of the app) or change the span to `<h1>`. After the page
+      change, restore the e2e assertion at `e2e/members.spec.ts:99` to
+      `getByRole("heading", { name: /alex park/i })`.
+- [ ] **Facility cards have no heading semantics.** `app/operations/facilities/page.tsx`
+      renders each resource name as `<div class="serif">` at 24px. Cards
+      should expose `<h2>` so screen-reader users can navigate between
+      resources and tooling like axe doesn't flag the page. Fix: change the
+      resource-name `<div>` at line ~88 to `<h2>` (style class unchanged).
+      After the page change, tighten the e2e assertion at
+      `e2e/operations.spec.ts:39` back to `getByRole("heading", { level: 2 }).first()`.
+
 ## Open product questions (from HANDOFF §6)
 
 These need a product decision before they affect implementation:

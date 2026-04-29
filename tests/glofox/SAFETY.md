@@ -30,13 +30,19 @@ should be rejected.
 
 ## Verb verification
 
+`GlofoxClient.request` takes the HTTP method as a **positional first argument**
+(`request("POST", path, ...)`) — not a `method: "POST"` config key. The grep
+must match the call-site shape `("POST"`, not `method: "POST"`.
+
 ```bash
-grep -nE 'method[: ]+["'"'"']?(POST|PUT|DELETE|PATCH)' lib/glofox/client.ts
+grep -nE '\(["'"'"'](POST|PUT|DELETE|PATCH)["'"'"']' lib/glofox/client.ts
 ```
 
-Returns only the three POST sites listed above (programs / transactions / leads),
-each individually verified as a search/report/filter endpoint. **No PUT, DELETE,
-or PATCH appears anywhere in the file.**
+Returns exactly three lines — programs / transactions / leads — each
+individually verified above as a search/report/filter endpoint. **No PUT,
+DELETE, or PATCH appears anywhere in the file.** If this grep returns more
+than three lines, a new method has been added: update the audit table above
+in the same PR.
 
 ## Other code paths that touch Glofox
 

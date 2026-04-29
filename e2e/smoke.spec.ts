@@ -62,9 +62,8 @@ test.describe("authed pages render", () => {
     test(`GET ${path} renders without a 5xx`, async ({ page }) => {
       const res = await page.goto(path);
       expect(res?.status()).toBeLessThan(500);
-      // Each page should render the AppShell — the sidebar nav has
-      // "Command Center" as its first item.
-      const navHook = page.getByText("Command Center", { exact: false });
+      // The AppShell sidebar's Command Center link is unique by role.
+      const navHook = page.getByRole("link", { name: "Command Center" });
       await expect(navHook).toBeVisible({ timeout: 10_000 });
     });
   }

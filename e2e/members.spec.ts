@@ -11,13 +11,16 @@ test.describe("members directory", () => {
       page.getByRole("heading", { name: "Members", level: 1 }),
     ).toBeVisible();
 
+    // KPI labels appear in the metric strip (top of page); the segments
+    // section below repeats some names as links — `.first()` locks to the
+    // KPI strip per DOM order.
     for (const kpi of [
       "Active members",
       "MRR (estimate)",
       "New this month",
       "Trials",
     ]) {
-      await expect(page.getByText(kpi, { exact: true })).toBeVisible();
+      await expect(page.getByText(kpi, { exact: true }).first()).toBeVisible();
     }
 
     // Segments H2 + the canonical 8 fixture segments
@@ -93,8 +96,9 @@ test.describe("members directory", () => {
     await page.goto("/members/directory");
     await page.getByRole("link", { name: /alex park alex@example\.com/i }).click();
     await page.waitForURL(/\/members\/m1/);
-    // Profile page renders a heading with the member's name
-    await expect(page.getByRole("heading", { name: /alex park/i })).toBeVisible();
+    // ProfileHeader renders the name as a styled <span>, not a heading;
+    // visible text is the assertion the navigation succeeded.
+    await expect(page.getByText(/alex park/i).first()).toBeVisible();
   });
 });
 

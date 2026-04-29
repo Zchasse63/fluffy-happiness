@@ -14,8 +14,11 @@ test.describe("revenue overview", () => {
     await expect(
       page.getByRole("heading", { name: "Revenue", level: 1 }),
     ).toBeVisible();
+    // String form matches as a case-insensitive substring; wrapping with
+    // `new RegExp(kpi)` would treat parens in "MRR (estimate)" as a capture
+    // group and fail to match the literal text on the page.
     for (const kpi of ["MRR (estimate)", "ARPM", "Revenue", "Failed payments"]) {
-      await expect(page.getByText(new RegExp(kpi)).first()).toBeVisible();
+      await expect(page.getByText(kpi).first()).toBeVisible();
     }
     for (const win of ["7d", "30d", "90d", "365d"]) {
       await expect(page.getByRole("link", { name: win, exact: true })).toBeVisible();
@@ -80,6 +83,9 @@ test.describe("revenue transactions", () => {
   test("clicking Refund triggers a POST to the refund endpoint", async ({
     page,
   }) => {
+    // TransactionActionButton uses window.confirm() — auto-accept it.
+    page.on("dialog", (d) => d.accept());
+
     let refundCalled = false;
     await page.route("**/api/transactions/*/refund", async (route) => {
       refundCalled = true;
@@ -91,21 +97,9 @@ test.describe("revenue transactions", () => {
     });
 
     await page.goto("/revenue/transactions");
-    // The first row's Refund button — there are several on the page.
     const refundBtn = page.getByRole("button", { name: "Refund", exact: true }).first();
     await expect(refundBtn).toBeVisible();
     await refundBtn.click();
-
-    // Either a confirm dialog opens or the POST is fired immediately.
-    // Wait for either signal — give a generous window since the stub may
-    // delay.
-    await page.waitForTimeout(500);
-    // If a confirm modal appeared, click its primary button.
-    const confirm = page.getByRole("button", { name: /confirm refund|refund/i }).nth(1);
-    if (await confirm.isVisible().catch(() => false)) {
-      await confirm.click();
-    }
-    // Allow a brief moment for the POST
     await page.waitForTimeout(500);
     expect(refundCalled).toBe(true);
   });
