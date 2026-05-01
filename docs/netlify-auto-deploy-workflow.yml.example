@@ -1,0 +1,35 @@
+name: Trigger Netlify deploy
+
+# Netlify is connected via deploy key (no GitHub App), so push events
+# don't auto-trigger builds. This workflow POSTs to the Netlify build
+# hook whenever main moves, which kicks off a deploy server-side.
+#
+# The hook URL is stored as a repo secret (NETLIFY_BUILD_HOOK). It's
+# scoped to the meridian-tsg site + main branch, so leaking it would
+# only allow triggering builds, not modifying site config.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  trigger:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: POST to Netlify build hook
+        env:
+          # Pass via env to avoid GitHub Actions template-injection
+          # patterns. The hook value is never interpolated into a shell
+          # command directly.
+          NETLIFY_BUILD_HOOK: ${{ secrets.NETLIFY_BUILD_HOOK }}
+          COMMIT_SHA: ${{ github.sha }}
+        run: |
+          if [ -z "$NETLIFY_BUILD_HOOK" ]; then
+            echo "::error::NETLIFY_BUILD_HOOK secret is not set"
+            exit 1
+          fi
+          curl -sS -X POST -d '{}' "$NETLIFY_BUILD_HOOK"
+          echo
+          echo "Build triggered for commit ${COMMIT_SHA:0:8}"
