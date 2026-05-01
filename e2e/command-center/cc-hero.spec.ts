@@ -13,12 +13,18 @@ import { expect, test } from "@playwright/test";
 import { CommandCenterPage } from "../../tests/pages/command-center.page";
 
 test.describe("PageHero", () => {
-  // CC-016
-  test("h1 contains 'Good morning, Zach.'", async ({ page }) => {
+  // CC-016 — greeting is "Good {morning|afternoon|evening}, {firstName}."
+  // Under TEST_AUTH_BYPASS the synthetic profile is "Test Owner" so first
+  // name = "Test". Time of day is whichever hour the test runs in.
+  test("h1 contains a time-of-day greeting + the operator's first name", async ({
+    page,
+  }) => {
     const cc = new CommandCenterPage(page);
     await cc.goto();
 
-    await expect(cc.heroTitle).toContainText("Good morning, Zach.");
+    await expect(cc.heroTitle).toContainText(
+      /Good (morning|afternoon|evening), Test\./,
+    );
   });
 
   // CC-017

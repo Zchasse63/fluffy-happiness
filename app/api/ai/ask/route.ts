@@ -13,6 +13,7 @@ import {
   askMeridian,
 } from "@/lib/ai/claude";
 import { authErrorResponse, requireRole } from "@/lib/auth";
+import { checkRateLimit, rateLimitedResponse } from "@/lib/rate-limit";
 import { createSupabaseServer } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -106,8 +107,19 @@ export async function POST(request: Request) {
   try {
     const profile = await requireRole("owner", "manager");
     const body = Body.parse(await request.json());
-    const supabase = await createSupabaseServer();
 
+    // M-08: cap Anthropic spend per user. 20 calls / hour / actor is
+    // generous for genuine operator use, plenty restrictive for a
+    // compromised credential or a runaway loop.
+    const rl = await checkRateLimit({
+      studioId: profile.studio_id,
+      key: `ai:ask:${profile.id}`,
+      max: 20,
+      windowMs: 60 * 60 * 1000,
+    });
+    if (!rl.allowed) return rateLimitedResponse(rl);
+
+    const supabase = await createSupabaseServer();
     const context = await buildStudioContext(supabase, profile.studio_id);
 
     try {

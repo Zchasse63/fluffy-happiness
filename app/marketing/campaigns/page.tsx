@@ -16,6 +16,11 @@ import { ToneBadge } from "@/components/status-pill";
 import { loadCampaigns } from "@/lib/data/campaigns";
 import { type Campaign } from "@/lib/fixtures";
 
+// M-10: until RESEND_API_KEY is set (Wave G), `sending` campaigns have
+// recipients queued in `campaign_recipients` but no emails actually
+// dispatched. Surface that explicitly so the operator doesn't think
+// emails went out.
+const RESEND_CONFIGURED = Boolean(process.env.RESEND_API_KEY);
 const STATUS_TONE: Record<
   Campaign["status"],
   { fg: string; soft: string; label: string }
@@ -26,7 +31,11 @@ const STATUS_TONE: Record<
     soft: "var(--cobalt-soft)",
     label: "Scheduled",
   },
-  sending: { fg: "var(--warn)", soft: "var(--warn-soft)", label: "Sending" },
+  sending: {
+    fg: "var(--warn)",
+    soft: "var(--warn-soft)",
+    label: RESEND_CONFIGURED ? "Sending" : "Queued · Resend pending",
+  },
   sent: { fg: "var(--pos)", soft: "var(--pos-soft)", label: "Sent" },
   paused: {
     fg: "var(--text-3)",

@@ -423,7 +423,7 @@ export const COMMAND_INSIGHTS: Insight[] = [
     ],
     body:
       "Evening Guided usually fills by Monday. Two canceled on Sunday without rebooking — likely the weather flip.",
-    action: "Promote on Instagram",
+    action: "Open class details",
     altAction: "Notify Wed regulars",
     href: "/schedule/calendar",
   },
@@ -611,6 +611,10 @@ export const ACTIVITY: ActivityEntry[] = [
   { t: "Yest 9 PM", who: "Dana Ortiz", what: "No-show · 8 PM Cold Plunge", tag: "Strike", tone: "warn" },
   { t: "Yest 7 PM", who: "Cigar City Co.", what: "Canceled corporate event (Apr 25)", tag: "−$480", tone: "neg" },
 ];
+
+/** Stable count export so e2e tests can pin to fixture size without
+ *  importing the array shape (BUG-007 cleanup). */
+export const ACTIVITY_FIXTURE_COUNT = ACTIVITY.length;
 
 export const ACTIVITY_TONE_TO_COLOR: Record<ActivityEntry["tone"], string> = {
   pos: "var(--pos)",

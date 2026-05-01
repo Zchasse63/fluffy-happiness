@@ -47,7 +47,17 @@ export default async function PortalPage() {
           )
         }
         actions={
-          <button type="button" className="btn btn-primary hov">
+          // Clock-in is not wired to the trainer-presence backend yet —
+          // disabled with a tooltip instead of letting the operator
+          // think it worked. Tracked in DEFERRED.md (L-09).
+          <button
+            type="button"
+            className="btn btn-primary hov"
+            disabled
+            title="Clock-in is pending integration with the trainer-presence backend."
+            aria-label="Clock in (pending integration)"
+            style={{ opacity: 0.55, cursor: "not-allowed" }}
+          >
             <Icon name="check" size={13} /> Clock in
           </button>
         }

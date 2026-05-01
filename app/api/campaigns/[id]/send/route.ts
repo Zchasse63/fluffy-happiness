@@ -45,8 +45,27 @@ export async function POST(_request: Request, { params }: { params: Params }) {
       );
     }
 
-    // Resolve audience — placeholder logic until segment resolution is
-    // formalised. Picks all active members with an email on file.
+    // M-04: refuse to send to a non-trivial segment_id until real segment
+    // resolution lands. Sending to "all active members" silently when the
+    // operator picked a specific segment would be a real-money bug. The
+    // operator can either clear the segment_id (send to all) or wait for
+    // the segment-resolution feature.
+    const segmentId = (campaign.segment_id ?? "").trim();
+    const isAllAudience =
+      segmentId === "" || segmentId === "all" || segmentId === "all-active";
+    if (!isAllAudience) {
+      return Response.json(
+        {
+          error: `Segment '${segmentId}' resolution is deferred. Update the campaign to target 'all-active' or wait for the segment-resolution feature (DEFERRED.md M-04).`,
+          code: "segment_resolution_deferred",
+        },
+        { status: 422 },
+      );
+    }
+
+    // Resolve audience — picks all active members with an email on file
+    // (the only audience type currently supported; see segment_id check
+    // above).
     const { data: members, error: memberErr } = await supabase
       .from("members")
       .select("id, profiles!inner(email)")

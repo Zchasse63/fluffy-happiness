@@ -28,6 +28,7 @@ import {
   SectionHead,
   type Kpi,
 } from "@/components/primitives";
+import { requireProfile } from "@/lib/auth";
 import {
   loadActivityFeed,
   loadFocusQueue,
@@ -44,8 +45,18 @@ import {
 } from "@/lib/fixtures";
 import { formatCurrency } from "@/lib/utils";
 
+function timeOfDayGreeting(hour: number): string {
+  if (hour < 12) return "Good morning";
+  if (hour < 18) return "Good afternoon";
+  return "Good evening";
+}
+
 export default async function CommandCenterPage() {
-  const date = new Date().toLocaleDateString("en-US", {
+  const profile = await requireProfile();
+  const firstName = profile.full_name?.trim().split(/\s+/)[0] || "there";
+  const now = new Date();
+  const greeting = `${timeOfDayGreeting(now.getHours())}, ${firstName}.`;
+  const date = now.toLocaleDateString("en-US", {
     weekday: "long",
     month: "long",
     day: "numeric",
@@ -70,19 +81,24 @@ export default async function CommandCenterPage() {
       })
     : "6:04 AM";
 
+  // Live KPI labels MUST match the fixture COMMAND_KPIS labels — that's
+  // what the Command Center e2e suite asserts against, and the operator
+  // shouldn't see different label sets between empty-DB and populated-DB
+  // states (BUG-005). The values come from the live snapshot when we
+  // have any data, otherwise the fixture cards provide a coherent demo.
   const liveKpis: Kpi[] =
     snapshot.todayCents || today.length
       ? [
           {
             label: "Revenue · today",
             value: formatCurrency(snapshot.todayCents),
-            delta: "+0%",
-            foot: "live",
+            delta: "live",
+            foot: "vs last Tue",
             dot: "var(--accent)",
             spark: COMMAND_KPIS[0].spark,
           },
           {
-            label: "Bookings · today",
+            label: "Bookings",
             value: String(snapshot.todayBookings),
             delta: "live",
             foot: `${today.length} classes`,
@@ -90,26 +106,26 @@ export default async function CommandCenterPage() {
             spark: COMMAND_KPIS[1].spark,
           },
           {
-            label: "Classes · 7d",
-            value: String(snapshot.weekClasses),
-            delta: "+0",
-            foot: "rolling",
+            label: "Walk-ins",
+            value: String(snapshot.walkIns),
+            delta: "live",
+            foot: "today",
             dot: "var(--cobalt)",
             spark: COMMAND_KPIS[2].spark,
           },
           {
-            label: "Revenue · 7d",
-            value: formatCurrency(snapshot.weekRevenueCents),
-            delta: "+0%",
-            foot: "rolling",
+            label: "No-shows",
+            value: String(snapshot.noShows),
+            delta: "live",
+            foot: "today",
             dot: "var(--moss)",
             spark: COMMAND_KPIS[3].spark,
           },
           {
-            label: "New members · 7d",
-            value: String(snapshot.newMembersThisWeek),
-            delta: "+0",
-            foot: "rolling",
+            label: "Attendance rate",
+            value: `${Math.round(snapshot.attendanceRate * 100)}%`,
+            delta: "live",
+            foot: "rolling 7d",
             dot: "var(--plum)",
             spark: COMMAND_KPIS[4].spark,
           },
@@ -122,7 +138,7 @@ export default async function CommandCenterPage() {
     <>
       <PageHero
         meta={`${date} · Operational briefing`}
-        title="Good morning, Zach."
+        title={greeting}
         subtitle={
           <>
             <strong>3 things</strong> need attention today. Revenue is pacing{" "}

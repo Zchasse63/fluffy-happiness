@@ -9,14 +9,28 @@
 import { AnthropicNotConfigured } from "@/lib/ai/claude";
 import { authErrorResponse, requireRole } from "@/lib/auth";
 import { runBriefingForStudio } from "@/lib/data/briefing-task";
+import { checkRateLimit, rateLimitedResponse } from "@/lib/rate-limit";
 import { createSupabaseServer } from "@/lib/supabase/server";
 
 export async function POST(request: Request) {
   try {
     const profile = await requireRole("owner", "manager");
-    const supabase = await createSupabaseServer();
     // ?force=1 bypasses the ai_cache and forces a fresh Anthropic call.
     const force = new URL(request.url).searchParams.get("force") === "1";
+
+    // M-08: cap forced regenerations to 5/day/studio. Cache-hit calls
+    // are free (no Anthropic spend) so they stay unrate-limited.
+    if (force) {
+      const rl = await checkRateLimit({
+        studioId: profile.studio_id,
+        key: `ai:briefing:force:${profile.studio_id}`,
+        max: 5,
+        windowMs: 24 * 60 * 60 * 1000,
+      });
+      if (!rl.allowed) return rateLimitedResponse(rl);
+    }
+
+    const supabase = await createSupabaseServer();
 
     try {
       const briefing = await runBriefingForStudio(

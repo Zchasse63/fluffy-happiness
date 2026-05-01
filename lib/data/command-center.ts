@@ -7,6 +7,7 @@
 import type { Insight } from "@/components/primitives";
 import { dateKey, withKpiCache } from "@/lib/cache";
 import { STUDIO_ID } from "@/lib/constants";
+import { logQueryError } from "@/lib/data/_log";
 import {
   ACTIVITY,
   WEEK_REVIEW,
@@ -433,7 +434,7 @@ type ActivityRow = {
 export async function loadActivityFeed(): Promise<ActivityEntry[]> {
   const supabase = await createSupabaseServer();
   const dayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("activity_log")
     .select(
       "type, payload, created_at, actor_id, profiles:actor_id(full_name)",
@@ -443,6 +444,7 @@ export async function loadActivityFeed(): Promise<ActivityEntry[]> {
     .order("created_at", { ascending: false })
     .limit(20)
     .returns<ActivityRow[]>();
+  logQueryError("command-center.activityFeed", error);
 
   const rows = data ?? [];
   if (!rows.length) return ACTIVITY;

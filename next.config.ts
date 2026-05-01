@@ -13,6 +13,30 @@ const securityHeaders = [
     key: "Strict-Transport-Security",
     value: "max-age=63072000; includeSubDomains; preload",
   },
+  // Drop browser features the operator dashboard never uses. Each empty
+  // allowlist `()` blocks the feature outright; remove an entry the day
+  // we add a flow that actually needs it.
+  {
+    key: "Permissions-Policy",
+    value: [
+      "camera=()",
+      "microphone=()",
+      "geolocation=()",
+      "payment=()",
+      "usb=()",
+      "midi=()",
+      "serial=()",
+      "magnetometer=()",
+      "gyroscope=()",
+      "accelerometer=()",
+      "interest-cohort=()",
+    ].join(", "),
+  },
+  // Isolates this browsing context from cross-origin popups (Spectre +
+  // window-handle leaks). `same-origin` is the strictest form that still
+  // lets our auth callback popup work.
+  { key: "Cross-Origin-Opener-Policy", value: "same-origin" },
+  { key: "Cross-Origin-Resource-Policy", value: "same-origin" },
   {
     key: "Content-Security-Policy",
     value: [

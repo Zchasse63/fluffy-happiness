@@ -94,6 +94,7 @@ export function LoginForm({
       <input
         id="email"
         type="email"
+        autoComplete="email"
         autoFocus
         required
         value={email}

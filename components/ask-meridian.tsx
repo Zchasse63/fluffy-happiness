@@ -49,6 +49,7 @@ export function AskMeridian() {
 
   return (
     <div
+      id="ask-meridian"
       className="card"
       style={{
         background:
@@ -58,6 +59,8 @@ export function AskMeridian() {
         padding: 24,
         position: "relative",
         overflow: "hidden",
+        // Leave clearance for the sticky topbar when navigated via #anchor.
+        scrollMarginTop: 80,
       }}
     >
       <div

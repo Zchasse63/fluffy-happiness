@@ -69,6 +69,12 @@ export function Icon({ name, size = 18, stroke = 1.6, ...rest }: IconProps) {
     strokeWidth: stroke,
     strokeLinecap: "round" as const,
     strokeLinejoin: "round" as const,
+    // Every icon in this app is decorative — the surrounding button/link
+    // text or aria-label is the accessible name. Callers that need an
+    // icon-only control should set aria-label on the wrapping element,
+    // or override aria-hidden on the SVG via ...rest.
+    "aria-hidden": true as const,
+    focusable: false as const,
     ...rest,
   };
   switch (name) {

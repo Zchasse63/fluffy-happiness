@@ -8,6 +8,7 @@
 
 import { dateKey, withKpiCache } from "@/lib/cache";
 import { STUDIO_ID } from "@/lib/constants";
+import { logQueryError } from "@/lib/data/_log";
 import {
   MEMBER_PROFILE_BOOKINGS,
   MEMBERS,
@@ -107,7 +108,8 @@ export async function listMembers(
     );
   }
 
-  const { data } = await q.returns<MemberRow[]>();
+  const { data, error } = await q.returns<MemberRow[]>();
+  logQueryError("members.list", error);
   const rows = data ?? [];
   // Empty result + any narrowing intent (search or status) = real
   // "no matches", return []. Use rawSearch — if the user typed

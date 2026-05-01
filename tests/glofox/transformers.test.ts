@@ -285,6 +285,121 @@ describe("transformTransaction", () => {
     expect(out.memberGlofoxId).toBe("gx-mem-7");
     expect(out.classGlofoxId).toBe("gx-cls-9");
   });
+
+  // L-12 edge-case coverage — added 2026-05-01.
+
+  it("defaults currency to USD when Glofox omits it", () => {
+    const out = transformTransaction(
+      {
+        _id: "gx-txn-4",
+        type: "subscription",
+        status: "completed",
+        amount: 50,
+        created_at: "2026-04-28T18:00:00Z",
+        // currency intentionally omitted
+      } as never,
+      STUDIO,
+    );
+    expect(out.row.currency).toBe("USD");
+  });
+
+  it("preserves non-USD currencies when provided", () => {
+    const out = transformTransaction(
+      {
+        _id: "gx-txn-5",
+        type: "subscription",
+        status: "completed",
+        amount: 50,
+        currency: "EUR",
+        created_at: "2026-04-28T18:00:00Z",
+      } as never,
+      STUDIO,
+    );
+    expect(out.row.currency).toBe("EUR");
+  });
+
+  it("returns null description when Glofox omits it", () => {
+    const out = transformTransaction(
+      {
+        _id: "gx-txn-6",
+        type: "subscription",
+        status: "completed",
+        amount: 50,
+        created_at: "2026-04-28T18:00:00Z",
+      } as never,
+      STUDIO,
+    );
+    expect(out.row.description).toBeNull();
+  });
+
+  it("returns undefined member/class ids when metadata is missing", () => {
+    const out = transformTransaction(
+      {
+        _id: "gx-txn-7",
+        type: "subscription",
+        status: "completed",
+        amount: 50,
+        created_at: "2026-04-28T18:00:00Z",
+      } as never,
+      STUDIO,
+    );
+    expect(out.memberGlofoxId).toBeUndefined();
+    expect(out.classGlofoxId).toBeUndefined();
+  });
+
+  it("rounds fractional amounts to the nearest cent", () => {
+    expect(
+      transformTransaction(
+        {
+          _id: "gx-txn-8",
+          type: "subscription",
+          status: "completed",
+          amount: 12.345,
+          created_at: "2026-04-28T18:00:00Z",
+        } as never,
+        STUDIO,
+      ).row.amount_cents,
+    ).toBe(1235);
+
+    expect(
+      transformTransaction(
+        {
+          _id: "gx-txn-9",
+          type: "subscription",
+          status: "completed",
+          amount: 0,
+          created_at: "2026-04-28T18:00:00Z",
+        } as never,
+        STUDIO,
+      ).row.amount_cents,
+    ).toBe(0);
+  });
+
+  it.each([
+    ["membership", "membership"],
+    ["subscription", "membership"],
+    ["credit_pack", "class_pack"],
+    ["pack", "class_pack"],
+    ["retail", "retail"],
+    ["product", "retail"],
+    ["gift_card", "gift_card"],
+    ["refund", "refund"],
+    ["corporate", "corporate"],
+    ["unknown_type", "walk_in"],
+    [undefined, "walk_in"],
+  ])("maps Glofox type %s → meridian type %s", (input, expected) => {
+    const row = transformTransaction(
+      {
+        _id: "gx-txn-typemap",
+        type: input,
+        status: "completed",
+        amount: 1,
+        created_at: "2026-04-28T18:00:00Z",
+      } as never,
+      STUDIO,
+    ).row;
+    expect(row.type).toBe(expected);
+  });
 });
 
 describe("transformLead", () => {

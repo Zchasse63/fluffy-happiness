@@ -13,6 +13,7 @@ export const dynamic = "force-dynamic";
 import Link from "next/link";
 
 import { Avatar } from "@/components/avatar";
+import { EmptyTableState } from "@/components/empty-state";
 import { Icon } from "@/components/icon";
 import {
   KpiCardStrip,
@@ -177,6 +178,17 @@ export default async function MembersDirectoryPage({
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <TableHead columns={TABLE_COLUMNS} />
             <tbody>
+              {members.length === 0 && (
+                <tr>
+                  <td colSpan={TABLE_COLUMNS.length} style={{ padding: 0 }}>
+                    <EmptyTableState>
+                      {search
+                        ? `No members match “${search}”. Clear the search to see all members.`
+                        : "No members yet. Sync from Glofox or add one to get started."}
+                    </EmptyTableState>
+                  </td>
+                </tr>
+              )}
               {members.map((m) => {
                 const tone = ENGAGEMENT_TONE[m.engagement];
                 return (

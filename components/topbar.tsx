@@ -1,6 +1,6 @@
 "use client";
 
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 
 import { Avatar } from "@/components/avatar";
 import { Icon } from "@/components/icon";
@@ -14,9 +14,26 @@ import { PAGE_TITLES } from "@/lib/nav";
 
 export function Topbar({ onOpenCmdK }: { onOpenCmdK: () => void }) {
   const pathname = usePathname();
+  const router = useRouter();
   const meta = PAGE_TITLES[pathname] ?? {
     crumb: ["Meridian", pathname],
     title: pathname,
+  };
+
+  // Topbar Ask Meridian: focus the AskMeridian banner on the Command
+  // Center. If the operator is already on `/`, scroll smoothly; from any
+  // other route, navigate to the anchor (Next handles cross-page hash
+  // scrolling). Resolves QA BUG-001 (button was inert).
+  const handleAskMeridian = () => {
+    if (pathname === "/") {
+      const el = document.getElementById("ask-meridian");
+      el?.scrollIntoView({ behavior: "smooth", block: "start" });
+      // Move focus into the Ask input if the section exposes one.
+      const input = el?.querySelector("input,textarea") as HTMLElement | null;
+      input?.focus();
+    } else {
+      router.push("/#ask-meridian");
+    }
   };
 
   return (
@@ -41,10 +58,19 @@ export function Topbar({ onOpenCmdK }: { onOpenCmdK: () => void }) {
           <span>Search or run a command</span>
           <span className="kbd">⌘K</span>
         </button>
-        <button type="button" className="btn btn-ghost hov">
+        <button
+          type="button"
+          className="btn btn-ghost hov"
+          onClick={handleAskMeridian}
+        >
           <Icon name="sparkle" size={14} /> Ask Meridian
         </button>
-        <button type="button" className="btn btn-primary hov">
+        <button
+          type="button"
+          className="btn btn-primary hov"
+          onClick={onOpenCmdK}
+          aria-label="Create new (opens command palette)"
+        >
           <Icon name="plus" size={14} /> New
         </button>
         <button type="button" className="icon-btn hov" aria-label="Notifications">

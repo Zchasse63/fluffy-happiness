@@ -4,6 +4,7 @@
  */
 
 import { STUDIO_ID } from "@/lib/constants";
+import { logQueryError } from "@/lib/data/_log";
 import { CAMPAIGNS, type Campaign } from "@/lib/fixtures";
 import { createSupabaseServer } from "@/lib/supabase/server";
 
@@ -45,7 +46,7 @@ type CampaignRow = {
 
 export async function loadCampaigns(): Promise<Campaign[]> {
   const supabase = await createSupabaseServer();
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("campaigns")
     .select(
       "id, name, status, channel, segment_id, recipient_count, sent_count, open_count, click_count, conversion_count, scheduled_for, sent_at",
@@ -55,6 +56,7 @@ export async function loadCampaigns(): Promise<Campaign[]> {
     .order("updated_at", { ascending: false })
     .limit(50)
     .returns<CampaignRow[]>();
+  logQueryError("campaigns.list", error);
 
   const rows = data ?? [];
   if (!rows.length) return CAMPAIGNS;

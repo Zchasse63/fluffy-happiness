@@ -43,7 +43,7 @@ test.describe("AI Briefing section", () => {
 
     await expect(p1.getByText(/P1 · Class below threshold/i)).toBeVisible();
     await expect(p1.getByText(/Whitney's 7 PM Guided is at 2\/10/i)).toBeVisible();
-    await expect(p1.getByRole("link", { name: /Promote on Instagram/i })).toBeVisible();
+    await expect(p1.getByRole("link", { name: /Open class details/i })).toBeVisible();
   });
 
   // CC-007
@@ -144,7 +144,7 @@ test.describe("AI Briefing section", () => {
 
     const p1 = cc.insightCard("P1");
     await expect(
-      p1.getByRole("link", { name: /Promote on Instagram/i }),
+      p1.getByRole("link", { name: /Open class details/i }),
     ).toHaveAttribute("href", "/schedule/calendar");
   });
 

@@ -999,6 +999,7 @@ export type Database = {
           performed_by: string | null
           resource_id: string
           studio_id: string
+          updated_at: string
         }
         Insert: {
           created_at?: string
@@ -1010,6 +1011,7 @@ export type Database = {
           performed_by?: string | null
           resource_id: string
           studio_id: string
+          updated_at?: string
         }
         Update: {
           created_at?: string
@@ -1021,6 +1023,7 @@ export type Database = {
           performed_by?: string | null
           resource_id?: string
           studio_id?: string
+          updated_at?: string
         }
         Relationships: [
           {
@@ -1793,6 +1796,38 @@ export type Database = {
           },
         ]
       }
+      rate_limits: {
+        Row: {
+          count: number
+          key: string
+          studio_id: string
+          updated_at: string
+          window_start: string
+        }
+        Insert: {
+          count?: number
+          key: string
+          studio_id: string
+          updated_at?: string
+          window_start?: string
+        }
+        Update: {
+          count?: number
+          key?: string
+          studio_id?: string
+          updated_at?: string
+          window_start?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rate_limits_studio_id_fkey"
+            columns: ["studio_id"]
+            isOneToOne: false
+            referencedRelation: "studios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       retail_products: {
         Row: {
           category: string
@@ -2133,6 +2168,19 @@ export type Database = {
           p_studio_id: string
         }
         Returns: string
+      }
+      check_rate_limit: {
+        Args: {
+          p_key: string
+          p_max: number
+          p_studio_id: string
+          p_window_ms: number
+        }
+        Returns: {
+          allowed: boolean
+          current_count: number
+          retry_after_ms: number
+        }[]
       }
       current_studio_id: { Args: never; Returns: string }
       current_user_roles: { Args: never; Returns: string[] }

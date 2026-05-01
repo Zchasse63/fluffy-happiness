@@ -50,7 +50,20 @@ export function StatusDot({
       : status === "draft"
         ? "dot-draft"
         : "dot-offline";
-  return <span className={`dot-status ${cls}`} />;
+  // The dot is a 6px coloured circle — pure visual indicator. Text label
+  // for screen readers comes from `role="img" + aria-label`. WCAG 1.4.1.
+  const labels: Record<typeof status, string> = {
+    active: "Status: active",
+    draft: "Status: draft",
+    offline: "Status: offline",
+  };
+  return (
+    <span
+      className={`dot-status ${cls}`}
+      role="img"
+      aria-label={labels[status]}
+    />
+  );
 }
 
 /* ───── LineChart ──────────────────────────────────────────────────── */

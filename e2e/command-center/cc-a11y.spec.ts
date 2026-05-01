@@ -176,7 +176,7 @@ test.describe("Keyboard accessibility", () => {
 
     const p1Card = cc.insightCard("P1");
     const actionLink = p1Card.getByRole("link", {
-      name: /Promote on Instagram/i,
+      name: /Open class details/i,
     });
 
     await actionLink.focus();

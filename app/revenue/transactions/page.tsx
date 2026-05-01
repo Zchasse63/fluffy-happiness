@@ -9,6 +9,7 @@
 export const dynamic = "force-dynamic";
 
 import { Avatar } from "@/components/avatar";
+import { EmptyTableState } from "@/components/empty-state";
 import { Icon } from "@/components/icon";
 import {
   PageHero,
@@ -83,6 +84,17 @@ export default async function RevenueTransactionsPage({
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
           <TableHead columns={TABLE_COLUMNS} />
           <tbody>
+            {txns.length === 0 && (
+              <tr>
+                <td colSpan={TABLE_COLUMNS.length} style={{ padding: 0 }}>
+                  <EmptyTableState>
+                    {search
+                      ? `No transactions match “${search}”. Clear the search or widen the date range.`
+                      : "No transactions yet. They'll appear here once Glofox or Stripe records the first one."}
+                  </EmptyTableState>
+                </td>
+              </tr>
+            )}
             {txns.map((t) => {
               const tone = TRANSACTION_KIND_META[t.kind];
               const refunded = t.status === "refunded";

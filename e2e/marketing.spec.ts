@@ -19,10 +19,16 @@ test.describe("marketing campaigns", () => {
     await expect(
       page.getByRole("button", { name: "New campaign" }),
     ).toBeVisible();
-    // Fixture state names should be present
-    for (const status of ["Sent", "Sending", "Scheduled", "Draft"]) {
+    // Fixture state names should be present. Note: until RESEND_API_KEY
+    // lands (Wave G), the "Sending" badge is rewritten to
+    // "Queued · Resend pending" by the page so the operator doesn't think
+    // emails actually went out — accept either label.
+    for (const status of ["Sent", "Scheduled", "Draft"]) {
       await expect(page.getByText(status, { exact: true }).first()).toBeVisible();
     }
+    await expect(
+      page.getByText(/^(Sending|Queued · Resend pending)$/).first(),
+    ).toBeVisible();
   });
 
   test("each campaign card surfaces Recipients/Sent/Open/Click metrics", async ({
