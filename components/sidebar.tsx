@@ -106,6 +106,8 @@ export function Sidebar({ onOpenCmdK }: { onOpenCmdK: () => void }) {
                     className={`nav-item ${parentActive ? "active" : ""} ${
                       isOpen ? "open" : ""
                     }`}
+                    aria-expanded={isOpen}
+                    aria-controls={`nav-sub-${item.id}`}
                     onClick={() =>
                       setOpenSections((prev) => ({
                         ...prev,
@@ -133,7 +135,7 @@ export function Sidebar({ onOpenCmdK }: { onOpenCmdK: () => void }) {
                   </Link>
                 )}
                 {hasChildren && isOpen && (
-                  <div className="nav-sub">
+                  <div className="nav-sub" id={`nav-sub-${item.id}`}>
                     {item.children!.map((c) => (
                       <Link
                         key={c.href}
@@ -192,6 +194,7 @@ export function Sidebar({ onOpenCmdK }: { onOpenCmdK: () => void }) {
             className="hov"
             onClick={onOpenCmdK}
             title="Command (⌘K)"
+            aria-label="Command palette (⌘K)"
             style={{
               display: "flex",
               alignItems: "center",

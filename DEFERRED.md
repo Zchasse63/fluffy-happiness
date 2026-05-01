@@ -116,6 +116,40 @@ M-05 fixed in migration 0015 + the manual sync route. Remaining mediums:
 - [x] Facility cards now use `<h2>` for resource names; the e2e
       assertion at `e2e/operations.spec.ts:39` is back to
       `getByRole("heading", { level: 2 }).first()`.
+- [x] **BUG-003** — sidebar nav expand/collapse buttons now expose
+      `aria-expanded` and `aria-controls`.
+- [x] **BUG-004** — sidebar ⌘K button now has `aria-label="Command palette (⌘K)"`.
+
+## QA-council follow-ups (2026-04-30)
+
+QA-council ran a deep 6-phase pass on the Command Center surface
+(`specs/reports/command-center-report.md`). Wrote 80 new tests, 100%
+passing. Surfaced 7 product-level findings; the two a11y ones are now
+fixed (above). Remaining items below.
+
+- [ ] **BUG-001** — topbar "Ask Meridian" button is inert. No click
+      handler wired in `components/topbar.tsx:44-46`. Likely intended to
+      either scroll to the Ask Meridian banner on the Command Center or
+      open the command palette pre-filled with an "Ask" context. Needs
+      product decision before implementation.
+- [ ] **BUG-002** — InsightCard altAction buttons are inert. The "Notify
+      Wed regulars" / "Offer 2-wk extension" secondary actions on briefing
+      cards have no click handler. Each implies a different downstream
+      flow (compose message, generate offer, etc.) — needs product
+      decision per insight type.
+- [ ] **BUG-005** — KPI strip uses different metric labels in fixture
+      mode vs live mode. `lib/fixtures.ts:COMMAND_KPIS` exposes
+      "Revenue · today / Bookings / Walk-ins / No-shows / Attendance rate";
+      `loadRevenueSnapshot()` returns "Classes · 7d / Revenue · 7d /
+      New members · 7d". Pick one canonical label set and reconcile.
+- [ ] **BUG-006** — `lib/fixtures.ts:COMMAND_INSIGHTS[0].action` has
+      label "Promote on Instagram" but href `/schedule/calendar`. Either
+      change the label to match the route (e.g. "View class details") or
+      change the href to a campaign-creation flow.
+- [ ] **BUG-007** — not really a bug; `e2e/command-center/cc-activity.spec.ts`
+      uses `count().toBeGreaterThanOrEqual(4)` to be resilient to fixture
+      changes. Refactor: export `ACTIVITY.length` from `lib/fixtures.ts`
+      so tests can pin to it without coupling to the fixture array shape.
 
 ## Open product questions (from HANDOFF §6)
 
