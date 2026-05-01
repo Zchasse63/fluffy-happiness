@@ -35,21 +35,10 @@ After the keys land, a few small follow-ups become possible:
       Supabase Auth to send the magic link.
 - [ ] **First real magic-link sign-in** to confirm prod auth works
       (deferred per direction).
-- [ ] **Enable push-to-deploy** (~2 min). Today the build hook is
-      configured server-side (Netlify build hook stored as repo secret
-      `NETLIFY_BUILD_HOOK`) but the GitHub Actions workflow that calls
-      it is not in `.github/workflows/` because the gh CLI's OAuth
-      token lacks the `workflow` scope. To enable:
-      1. `gh auth refresh -h github.com -s workflow` (browser flow,
-         ~30s)
-      2. `mv docs/netlify-auto-deploy-workflow.yml.example .github/workflows/netlify-deploy.yml`
-      3. `git add .github/workflows/netlify-deploy.yml && git commit -m "Enable Netlify auto-deploy" && git push`
-      OR install Netlify's GitHub App on `Zchasse63/fluffy-happiness`
-      (Netlify dashboard → Site settings → Build & deploy → Continuous
-      deployment → Manage GitHub installations) which sets up native
-      webhooks. Either approach makes future pushes auto-deploy. Until
-      one of these lands, deploys can be triggered manually via Netlify
-      dashboard or `curl -X POST https://api.netlify.com/build_hooks/<id>`.
+- [x] **Push-to-deploy enabled.** GitHub Action at
+      `.github/workflows/netlify-deploy.yml` POSTs to the Netlify build
+      hook on every push to `main`. Hook URL stored as repo secret
+      `NETLIFY_BUILD_HOOK`. Verified end-to-end 2026-05-01.
 
 ---
 
