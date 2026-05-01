@@ -2185,6 +2185,13 @@ export type Database = {
       current_studio_id: { Args: never; Returns: string }
       current_user_roles: { Args: never; Returns: string[] }
       is_admin: { Args: never; Returns: boolean }
+      link_my_profile: {
+        Args: never
+        Returns: {
+          already_linked: boolean
+          linked_profile_id: string
+        }[]
+      }
     }
     Enums: {
       [_ in never]: never

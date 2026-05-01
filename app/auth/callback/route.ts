@@ -21,7 +21,6 @@
 
 import { NextResponse, type NextRequest } from "next/server";
 
-import { STUDIO_ID } from "@/lib/constants";
 import { createSupabaseServer } from "@/lib/supabase/server";
 
 // Actively clear the @supabase/ssr session cookies on the redirect
@@ -61,39 +60,30 @@ export async function GET(request: NextRequest) {
   if (!user?.email) {
     return NextResponse.redirect(`${origin}/login?error=missing_email`);
   }
-  const email = user.email.toLowerCase();
 
-  // Atomic link-or-fail. .ilike() with no wildcards = case-insensitive
-  // equality, matches the `idx_profiles_email` index on LOWER(email)
-  // so the comparison stays index-friendly even if a Glofox import ever
-  // landed mixed-case emails.
-  const { data: linked } = await supabase
-    .from("profiles")
-    .update({ auth_user_id: user.id })
-    .eq("studio_id", STUDIO_ID)
-    .ilike("email", email)
-    .is("auth_user_id", null)
-    .select("id")
-    .maybeSingle();
+  // Link via SECURITY DEFINER RPC. The RPC reads auth.email() +
+  // auth.uid() server-side so a client can't ask to link a different
+  // profile, but it bypasses the first-sign-in chicken-and-egg in RLS:
+  // a brand-new auth user has no linked profile yet, so
+  // current_studio_id() returns NULL and the policy on profiles fails.
+  // See migration 0017.
+  const { data: linkRows, error: linkErr } = await supabase.rpc(
+    "link_my_profile",
+  );
+  const link = Array.isArray(linkRows) ? linkRows[0] : linkRows;
 
-  if (linked) {
+  if (linkErr) {
+    return NextResponse.redirect(
+      `${origin}/login?error=${encodeURIComponent(linkErr.message)}`,
+    );
+  }
+
+  // Both happy paths — freshly linked OR already linked — get redirected.
+  if (link?.linked_profile_id) {
     return NextResponse.redirect(`${origin}${next}`);
   }
 
-  // No row updated: either (a) we're already linked from a prior sign-in
-  // (re-login path — proceed) or (b) the email isn't on the allowlist
-  // (deny + clear session). Disambiguate with a follow-up SELECT.
-  const { data: alreadyLinked } = await supabase
-    .from("profiles")
-    .select("id")
-    .eq("studio_id", STUDIO_ID)
-    .eq("auth_user_id", user.id)
-    .maybeSingle();
-
-  if (alreadyLinked) {
-    return NextResponse.redirect(`${origin}${next}`);
-  }
-
+  // No matching profile: email isn't on the allowlist. Clear session.
   await supabase.auth.signOut();
   const denied = NextResponse.redirect(`${origin}/login?error=not_authorized`);
   clearAuthCookies(request, denied);
