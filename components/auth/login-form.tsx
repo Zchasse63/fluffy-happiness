@@ -45,7 +45,15 @@ export function LoginForm({
     try {
       const supabase = createSupabaseBrowser();
       const next = searchParams ? (await searchParams).next : undefined;
-      const redirectTo = `${window.location.origin}/auth/callback${
+      // Prefer NEXT_PUBLIC_APP_URL so a magic link requested from any
+      // host (e.g. someone accidentally on localhost while a dev server
+      // is up) still lands on the canonical deployed URL. Falls back to
+      // the current origin during local dev where APP_URL points at
+      // localhost itself.
+      const origin =
+        process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") ||
+        window.location.origin;
+      const redirectTo = `${origin}/auth/callback${
         next ? `?next=${encodeURIComponent(next)}` : ""
       }`;
       const { error: err } = await supabase.auth.signInWithOtp({
