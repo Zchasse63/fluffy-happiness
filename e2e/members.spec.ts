@@ -96,9 +96,11 @@ test.describe("members directory", () => {
     await page.goto("/members/directory");
     await page.getByRole("link", { name: /alex park alex@example\.com/i }).click();
     await page.waitForURL(/\/members\/m1/);
-    // ProfileHeader renders the name as a styled <span>, not a heading;
-    // visible text is the assertion the navigation succeeded.
-    await expect(page.getByText(/alex park/i).first()).toBeVisible();
+    // ProfileHeader renders the member name as <h1> (semantic landmark
+    // for screen readers) — assert via role.
+    await expect(
+      page.getByRole("heading", { name: /alex park/i, level: 1 }),
+    ).toBeVisible();
   });
 });
 

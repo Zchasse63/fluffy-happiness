@@ -39,6 +39,13 @@ deployed environment.
       Auth to send the magic link.
 - [ ] **Run Glofox backfill** — once creds are set, hit `/api/glofox/backfill`.
       Expect ~5 min for full historical import.
+- [ ] **One-time sync-engine pass to populate new FK fields** (trainers /
+      class_instances / etc., added in migrations 0011–0013). As of audit
+      M-05 (2026-04-30), the manual `POST /api/glofox/sync` route now uses
+      the service-role admin client — so an authed owner/manager can
+      trigger this directly via the dashboard once the app is deployed.
+      Until then, the Inngest hourly cron will populate FK rels naturally
+      after Wave G activates.
 - [ ] **Verify counts** — compare Supabase row counts to Glofox dashboard
       (members, weekly bookings, monthly revenue) within ±1%.
 - [ ] **Stripe → Customer mapping** — set `stripe_customer_id` on each
@@ -68,29 +75,47 @@ deployed environment.
       with Sentry's Next.js SDK + a custom OTEL exporter for the API
       routes once a tracing backend is chosen.
 
-## Accessibility findings (deferred to the post-Wave-F audit pass)
+## Audit follow-ups (cartographer 2026-04-30)
 
-Surfaced by `feature-dev:code-reviewer` on the Wave F closeout diff
-(2026-04-29). Each is a real semantic-HTML defect that the e2e tests
-were updated to tolerate rather than enforce; the audit wave should
-either fix the markup or explicitly accept the trade-off and tighten
-the test assertions back.
+Production-readiness scored 78/100, zero critical/high. Items M-01, M-02,
+M-05 fixed in migration 0015 + the manual sync route. Remaining mediums:
 
-- [ ] **Member profile page has no `<h1>`.** `components/member-profile/profile-header.tsx`
-      renders the member name as `<span class="serif">` at 32px. Every other
-      page gets its H1 from `<PageHero>`; profile omits PageHero entirely.
-      Screen readers have no landmark for the member's name. Fix: either add
-      `<PageHero title={member.name} ... />` above the header card (consistent
-      with the rest of the app) or change the span to `<h1>`. After the page
-      change, restore the e2e assertion at `e2e/members.spec.ts:99` to
-      `getByRole("heading", { name: /alex park/i })`.
-- [ ] **Facility cards have no heading semantics.** `app/operations/facilities/page.tsx`
-      renders each resource name as `<div class="serif">` at 24px. Cards
-      should expose `<h2>` so screen-reader users can navigate between
-      resources and tooling like axe doesn't flag the page. Fix: change the
-      resource-name `<div>` at line ~88 to `<h2>` (style class unchanged).
-      After the page change, tighten the e2e assertion at
-      `e2e/operations.spec.ts:39` back to `getByRole("heading", { level: 2 }).first()`.
+- [ ] **M-03** — `lib/data/segments.ts:computeSegmentCounts()` 21-day
+      bookings fetch is unbounded. ~1,750 rows at current scale; the code
+      comment already plans an RPC migration when it exceeds 50k.
+- [ ] **M-04** — `campaigns.segment_id` is a `TEXT` column with no FK and
+      the send route ignores it (sends to all active members). Wire up
+      segment resolution OR add explicit UI copy clarifying current
+      behavior.
+- [ ] **M-06** — `/api/health` exposes 6 integration credential-presence
+      flags to unauthenticated callers. Move flags behind `requireRole` or
+      strip from the public response. Will need to update the settings
+      page (which reads these) and `e2e/settings.spec.ts:62-69` in the
+      same change.
+- [ ] **M-07** — Production CSP includes `script-src 'unsafe-inline'`.
+      Implement nonce-based CSP via Next 16 middleware. Verify Next 16
+      pattern (Next 15 supports nonces in middleware; Next 16 may differ).
+- [ ] **M-08** — No rate limiting on `/api/ai/ask` and
+      `/api/ai/briefing?force=1`. Owner/manager can trigger unlimited
+      Anthropic calls. Add a token-bucket using `kpi_cache` (or a new
+      `rate_limits` table) — 10 ask/hour/user, 3 forced briefings/day/studio.
+- [ ] **M-09** — `lib/inngest/briefing.ts:briefingOnRequest` accepts
+      arbitrary `studioId` from the event payload and uses
+      `createSupabaseAdmin()`. Add a `studioId` whitelist before the admin
+      call (Wave G also sets `INNGEST_SIGNING_KEY` which prevents the
+      function from being invoked anonymously).
+- [ ] **M-10** — Campaign send queues recipients but doesn't deliver until
+      Resend creds are set. Add an explicit "Queued — delivery pending
+      email integration setup" badge on the campaign UI.
+
+## Accessibility findings — RESOLVED 2026-04-30
+
+- [x] Member profile page now uses `<h1>` for the member name; the e2e
+      assertion at `e2e/members.spec.ts:99` is back to
+      `getByRole("heading", { name: /alex park/i, level: 1 })`.
+- [x] Facility cards now use `<h2>` for resource names; the e2e
+      assertion at `e2e/operations.spec.ts:39` is back to
+      `getByRole("heading", { level: 2 }).first()`.
 
 ## Open product questions (from HANDOFF §6)
 

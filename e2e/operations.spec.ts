@@ -35,8 +35,11 @@ test.describe("operations sub-pages", () => {
     await expect(
       page.getByRole("heading", { level: 1 }).first(),
     ).toBeVisible();
-    // Each resource card surfaces "Capacity" — proves the list rendered.
-    await expect(page.getByText(/capacity/i).first()).toBeVisible();
+    // Each resource card exposes its name as <h2> for screen-reader
+    // navigation between rows.
+    await expect(
+      page.getByRole("heading", { level: 2 }).first(),
+    ).toBeVisible();
   });
 
   test("waivers page renders + shows the waiver concept", async ({ page }) => {

@@ -118,10 +118,14 @@ Don't drift from these without design review.
 
 ### Outstanding (low-priority, deferred)
 
-The audit's MED/LOW backlog items — segment N+1 → RPCs, plan-count N+1,
-Sentry/OTEL instrumentation, and the open product questions in
-`DEFERRED.md` — are tracked for a future pass. None gate the daily
-operator workflow.
+- **Sentry / OTEL instrumentation** — needs a tracing-backend choice; tracked in `DEFERRED.md`.
+- **Open product questions** in `DEFERRED.md` (multi-location, HIPAA stance, refund authority, etc.).
+- **Wave G credentials** — Inngest signing/event keys, Resend API + webhook secret, Stripe.
+
+(_Previously listed here:_ "segment N+1 → RPCs" and "plan-count N+1" — both
+were already addressed in earlier waves. `lib/data/segments.ts` uses one
+parallel batch of head-count queries plus in-memory aggregation; `lib/data/revenue.ts`
+fetches active members once and bucket-counts in-memory. Verified 2026-04-29.)
 
 ## Development Notes
 

@@ -19,16 +19,18 @@ export function ProfileHeader({ member }: { member: Member }) {
         <Avatar name={member.name} seed={member.seed} size={64} />
         <div style={{ flex: 1 }}>
           <div className="row" style={{ gap: 10, marginBottom: 6 }}>
-            <span
+            <h1
               className="serif"
               style={{
                 fontSize: 32,
                 letterSpacing: "-0.02em",
                 lineHeight: 1.1,
+                margin: 0,
+                fontWeight: "inherit",
               }}
             >
               {member.name}
-            </span>
+            </h1>
             <ToneBadge tone={tone}>{member.engagement}</ToneBadge>
             {member.strikes > 0 && (
               <span

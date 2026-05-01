@@ -76,17 +76,19 @@ export default async function FacilitiesPage() {
                 Capacity {r.capacity}
               </span>
             </div>
-            <div
+            <h2
               className="serif"
               style={{
                 fontSize: 24,
                 letterSpacing: "-0.02em",
                 lineHeight: 1.05,
+                marginTop: 0,
                 marginBottom: 14,
+                fontWeight: "inherit",
               }}
             >
               {r.name}
-            </div>
+            </h2>
             <div className="row" style={{ gap: 24, marginBottom: 12 }}>
               <div>
                 <div className="metric-label">Last serviced</div>
