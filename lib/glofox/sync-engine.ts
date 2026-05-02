@@ -345,13 +345,17 @@ export async function runGlofoxSync(
   const leads = await glofox.leads();
   await emit({ stage: "leads", count: leads.length });
   if (leads.length) {
-    const { error } = await supabase
-      .from("leads")
-      .upsert(
-        leads.map((l) => transformLead(l, studioId)),
-        { onConflict: "studio_id,glofox_id" },
-      );
-    if (error) throw new Error(`Leads upsert failed: ${error.message}`);
+    const leadRows = leads
+      .map((l) => transformLead(l, studioId))
+      // Same null-field defense as classes + transactions: drop rows
+      // missing required fields rather than failing the whole sync.
+      .filter((row) => row.status != null && row.status !== "");
+    if (leadRows.length) {
+      const { error } = await supabase
+        .from("leads")
+        .upsert(leadRows, { onConflict: "studio_id,glofox_id" });
+      if (error) throw new Error(`Leads upsert failed: ${error.message}`);
+    }
   }
 
   const counts: SyncCounts = {
