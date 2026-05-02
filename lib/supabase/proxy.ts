@@ -22,6 +22,7 @@ const PUBLIC_PREFIXES = [
   // handler enforces both — the proxy just needs to let the request
   // through without redirecting the no-cookie cron path to /login.
   "/api/glofox/sync",
+  "/api/ai/briefing", // Same dual auth (cookie OR CRON_SECRET) as sync.
 ];
 
 function isPublic(pathname: string) {
