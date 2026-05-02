@@ -154,6 +154,22 @@ export async function runGlofoxSync(
         .upsert(memberRows, { onConflict: "studio_id,glofox_id" });
       if (memberErr) throw new Error(`Members upsert failed: ${memberErr.message}`);
     }
+
+    // Link members to plans by membership_tier text → membership_plans.name.
+    // Glofox doesn't return a plan FK, just the membership name as text;
+    // we maintain membership_plans separately (hand-curated prices) and
+    // join here so MRR / active counts compute correctly. Members whose
+    // tier doesn't match any plan name (trial flags, legacy categories,
+    // private events) keep plan_id = null.
+    const { error: linkErr } = await supabase.rpc("link_members_to_plans", {
+      p_studio_id: studioId,
+    });
+    // Ignore "function does not exist" errors so this is forward-compatible
+    // with deployments that haven't applied migration 0018 yet.
+    if (linkErr && !linkErr.message.includes("does not exist")) {
+      // eslint-disable-next-line no-console
+      console.error("[sync] link_members_to_plans failed", linkErr);
+    }
   }
 
   // 3. Programs
@@ -304,10 +320,16 @@ export async function runGlofoxSync(
       memberMap = buildIdMap(memberRows);
     }
 
-    const txnRows = transformedTxns.map((t) => ({
-      ...t.row,
-      member_id: t.memberGlofoxId ? memberMap.get(t.memberGlofoxId) ?? null : null,
-    }));
+    const txnRows = transformedTxns
+      .map((t) => ({
+        ...t.row,
+        member_id: t.memberGlofoxId ? memberMap.get(t.memberGlofoxId) ?? null : null,
+      }))
+      // Glofox occasionally returns transaction rows with status = null
+      // (cancelled/draft txns or analytics-only stubs). The transactions
+      // schema requires status NOT NULL, and these don't represent
+      // resolved money anyway — drop them.
+      .filter((row) => row.status != null && row.status !== "");
 
     for (let i = 0; i < txnRows.length; i += CHUNK_SIZE) {
       const chunk = txnRows.slice(i, i + CHUNK_SIZE);

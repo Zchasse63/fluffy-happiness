@@ -2185,6 +2185,12 @@ export type Database = {
       current_studio_id: { Args: never; Returns: string }
       current_user_roles: { Args: never; Returns: string[] }
       is_admin: { Args: never; Returns: boolean }
+      link_members_to_plans: {
+        Args: { p_studio_id: string }
+        Returns: {
+          linked_count: number
+        }[]
+      }
       link_my_profile: {
         Args: never
         Returns: {
