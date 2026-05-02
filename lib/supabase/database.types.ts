@@ -2140,7 +2140,49 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      people: {
+        Row: {
+          credit_balance: number | null
+          email: string | null
+          email_key: string | null
+          first_booking_at: string | null
+          full_name: string | null
+          has_trial_purchase: boolean | null
+          is_active_recurring: boolean | null
+          is_lead_only: boolean | null
+          is_member: boolean | null
+          last_purchase_at: string | null
+          last_visit_at: string | null
+          lead_id: string | null
+          member_id: string | null
+          membership_status: string | null
+          membership_tier: string | null
+          phone: string | null
+          plan_id: string | null
+          plan_price_cents: number | null
+          purchases_60d: number | null
+          registered_at: string | null
+          studio_id: string | null
+          total_spend_cents: number | null
+          visits_21d: number | null
+          visits_30d: number | null
+          visits_60d: number | null
+        }
+        Relationships: []
+      }
+      segment_assignments: {
+        Row: {
+          email: string | null
+          email_key: string | null
+          full_name: string | null
+          lead_id: string | null
+          member_id: string | null
+          phone: string | null
+          segment_id: string | null
+          studio_id: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       apply_credit_ledger: {
@@ -2196,6 +2238,31 @@ export type Database = {
         Returns: {
           already_linked: boolean
           linked_profile_id: string
+        }[]
+      }
+      segment_counts: {
+        Args: { p_studio_id: string }
+        Returns: {
+          member_count: number
+          segment_id: string
+          stale_credit_value: number
+        }[]
+      }
+      segment_people: {
+        Args: { p_limit?: number; p_segment_id: string; p_studio_id: string }
+        Returns: {
+          credit_balance: number
+          email: string
+          full_name: string
+          last_purchase_at: string
+          last_visit_at: string
+          lead_id: string
+          member_id: string
+          membership_status: string
+          membership_tier: string
+          phone: string
+          total_spend_cents: number
+          visits_30d: number
         }[]
       }
     }

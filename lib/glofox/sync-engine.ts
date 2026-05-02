@@ -342,14 +342,23 @@ export async function runGlofoxSync(
   }
 
   // 7. Leads
+  // GloFox treats EVERY signup as a "lead", regardless of whether the
+  // person later became a paying member. Most of these records aren't
+  // really leads in the marketing sense — they're members, ex-members,
+  // trial buyers, drop-in customers. We ingest the whole set as
+  // "people" and derive their actual category in lib/data/segments.ts.
+  // Status often comes back null or empty (Glofox doesn't enforce it);
+  // default to "new" so the row lands instead of being dropped.
   const leads = await glofox.leads();
   await emit({ stage: "leads", count: leads.length });
   if (leads.length) {
-    const leadRows = leads
-      .map((l) => transformLead(l, studioId))
-      // Same null-field defense as classes + transactions: drop rows
-      // missing required fields rather than failing the whole sync.
-      .filter((row) => row.status != null && row.status !== "");
+    const leadRows = leads.map((l) => {
+      const row = transformLead(l, studioId);
+      return {
+        ...row,
+        status: row.status && row.status !== "" ? row.status : "new",
+      };
+    });
     if (leadRows.length) {
       const { error } = await supabase
         .from("leads")
