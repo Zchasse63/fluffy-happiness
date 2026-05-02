@@ -8,6 +8,7 @@
  * Inngest hourly cron can run the same code path without streaming.
  */
 
+import { STUDIO_ID } from "@/lib/constants";
 import { authErrorResponse, requireRole } from "@/lib/auth";
 import { GlofoxClient, GlofoxNotConfigured } from "@/lib/glofox";
 import { runGlofoxSync } from "@/lib/glofox/sync-engine";
@@ -16,14 +17,43 @@ import { createSupabaseAdmin } from "@/lib/supabase/admin";
 export const dynamic = "force-dynamic";
 export const maxDuration = 300; // Netlify Pro can run 5 min
 
-export async function POST() {
+/** Constant-time compare so a CRON_SECRET probe can't be timed. */
+function timingSafeEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) {
+    diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  }
+  return diff === 0;
+}
+
+export async function POST(request: Request) {
   try {
-    // Sync writes are system-level: require an authed owner/manager at the
-    // boundary, but use the service-role client so the upserts aren't
-    // gated by per-row RLS evaluation. The Inngest hourly cron uses the
-    // same admin client (lib/inngest/sync.ts) — keeping the manual and
-    // automated paths semantically identical (audit M-05).
-    const profile = await requireRole("owner", "manager");
+    // Two trigger paths, same code path beneath:
+    //   1. Authed owner/manager via the dashboard (or curl with cookie).
+    //   2. `Authorization: Bearer <CRON_SECRET>` for cron jobs and
+    //      one-off ops backfills. The secret is generated via
+    //      `openssl rand -base64 32` and stored as CRON_SECRET — only
+    //      the operator + Netlify env have it.
+    // Both paths use the service-role admin client so upserts aren't
+    // gated by per-row RLS (audit M-05).
+    const cronSecret = process.env.CRON_SECRET;
+    const auth = request.headers.get("authorization") ?? "";
+    const presentedSecret = auth.startsWith("Bearer ") ? auth.slice(7) : "";
+    const isCronAuthed =
+      cronSecret !== undefined &&
+      cronSecret.length > 0 &&
+      presentedSecret.length > 0 &&
+      timingSafeEqual(presentedSecret, cronSecret);
+
+    let studioId: string;
+    if (isCronAuthed) {
+      studioId = STUDIO_ID;
+    } else {
+      const profile = await requireRole("owner", "manager");
+      studioId = profile.studio_id;
+    }
+
     const supabase = createSupabaseAdmin();
 
     if (!GlofoxClient.isConfigured()) {
@@ -41,7 +71,7 @@ export async function POST() {
       try {
         await runGlofoxSync({
           supabase,
-          studioId: profile.studio_id,
+          studioId,
           glofox,
           onProgress: (event) => send(event),
         });
