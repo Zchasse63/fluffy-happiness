@@ -1,9 +1,12 @@
 /*
- * Members · Segments — saved segments with member counts, computation
- * type (auto vs manual), and a sample preview. Clicking a segment
- * filters the directory.
+ * Members · Segments — 13 behavioral segments derived from real GloFox
+ * data (members + leads + bookings + transactions). Definitions live in
+ * supabase/migrations/0019 + 0020. UI metadata in lib/fixtures.SEGMENTS.
  *
- * Counts come from `loadSegmentCounts`; falls back to fixtures.
+ * Priority badges (P0/P1/P2) drive operator focus: P0 = call today,
+ * P1 = email this week, P2 = batch nurture. Each card links to a
+ * drill-down list at /members/segments/[id] and to a new-campaign
+ * shortcut prefilled with the segment.
  */
 
 export const dynamic = "force-dynamic";
@@ -12,11 +15,34 @@ import Link from "next/link";
 
 import { Icon } from "@/components/icon";
 import { PageHero, SectionHead } from "@/components/primitives";
-import { loadSegmentCounts } from "@/lib/data/segments";
-import { SEGMENTS } from "@/lib/fixtures";
+import { loadSegmentMetrics } from "@/lib/data/segments";
+import { SEGMENTS, type SegmentMeta } from "@/lib/fixtures";
+import { formatCurrency } from "@/lib/utils";
+
+const PRIORITY_TONE: Record<
+  SegmentMeta["priority"],
+  { fg: string; soft: string; label: string }
+> = {
+  P0: { fg: "var(--neg)", soft: "var(--neg-soft)", label: "P0 · Call today" },
+  P1: {
+    fg: "var(--warn)",
+    soft: "var(--warn-soft)",
+    label: "P1 · Email this week",
+  },
+  P2: {
+    fg: "var(--text-2)",
+    soft: "var(--surface-2)",
+    label: "P2 · Batch nurture",
+  },
+};
 
 export default async function MembersSegmentsPage() {
-  const counts = await loadSegmentCounts();
+  const { counts, staleCreditLiabilityCents } = await loadSegmentMetrics();
+  const ordered = [...SEGMENTS].sort((a, b) => {
+    const pri = a.priority.localeCompare(b.priority);
+    if (pri !== 0) return pri;
+    return (counts[b.id] ?? 0) - (counts[a.id] ?? 0);
+  });
 
   return (
     <>
@@ -25,20 +51,18 @@ export default async function MembersSegmentsPage() {
         title="Segments"
         subtitle={
           <>
-            Saved cohorts you can target with campaigns or send to the
-            directory. <strong>Auto</strong> segments recompute hourly;
-            <strong> manual</strong> ones are pinned snapshots.
+            13 behavioral cohorts derived from your live Glofox data.
+            <strong> P0</strong> means call today, <strong>P1</strong>{" "}
+            email this week, <strong>P2</strong> nurture in batch. Stale
+            credit liability:{" "}
+            <strong>{formatCurrency(staleCreditLiabilityCents)}</strong>{" "}
+            (will populate once Glofox /credits sync lands).
           </>
         }
         actions={
-          <>
-            <button type="button" className="btn btn-ghost hov">
-              <Icon name="download" size={13} /> Export
-            </button>
-            <button type="button" className="btn btn-primary hov">
-              <Icon name="plus" size={13} /> New segment
-            </button>
-          </>
+          <button type="button" className="btn btn-ghost hov">
+            <Icon name="download" size={13} /> Export all
+          </button>
         }
       />
 
@@ -49,108 +73,106 @@ export default async function MembersSegmentsPage() {
           gap: 14,
         }}
       >
-        {SEGMENTS.map((s) => (
-          <div className="card" key={s.id} style={{ padding: 22 }}>
-            <div
-              className="row"
-              style={{ justifyContent: "space-between", marginBottom: 12 }}
-            >
-              <span
-                className="badge"
+        {ordered.map((s) => {
+          const tone = PRIORITY_TONE[s.priority];
+          const count = counts[s.id] ?? 0;
+          return (
+            <div className="card" key={s.id} style={{ padding: 22 }}>
+              <div
+                className="row"
                 style={{
-                  background: s.auto
-                    ? "var(--accent-soft)"
-                    : "var(--surface-2)",
-                  color: s.auto ? "var(--accent-deep)" : "var(--text-2)",
+                  justifyContent: "space-between",
+                  marginBottom: 12,
                 }}
               >
-                {s.auto ? "Auto" : "Manual"}
-              </span>
-              <span
-                className="mono text-3"
-                style={{
-                  fontSize: 10.5,
-                  letterSpacing: "0.1em",
-                  textTransform: "uppercase",
-                }}
-              >
-                Updated 12 min ago
-              </span>
-            </div>
-            <div
-              className="serif"
-              style={{
-                fontSize: 26,
-                letterSpacing: "-0.02em",
-                lineHeight: 1.05,
-                marginBottom: 6,
-              }}
-            >
-              {s.name}
-            </div>
-            <div
-              style={{
-                color: "var(--text-2)",
-                fontSize: 13,
-                lineHeight: 1.5,
-                marginBottom: 14,
-              }}
-            >
-              {s.description}
-            </div>
-            <div
-              className="row"
-              style={{ justifyContent: "space-between", alignItems: "center" }}
-            >
-              <div>
-                <div
-                  className="serif"
-                  style={{ fontSize: 28, letterSpacing: "-0.02em" }}
+                <span
+                  className="badge"
+                  style={{ background: tone.soft, color: tone.fg }}
                 >
-                  {(counts[s.id] ?? s.count).toLocaleString()}
-                </div>
-                <div
+                  {tone.label}
+                </span>
+                <span
                   className="mono text-3"
                   style={{
-                    fontSize: 10,
+                    fontSize: 10.5,
                     letterSpacing: "0.1em",
                     textTransform: "uppercase",
                   }}
                 >
-                  members
+                  Auto · live
+                </span>
+              </div>
+              <div
+                className="serif"
+                style={{
+                  fontSize: 26,
+                  letterSpacing: "-0.02em",
+                  lineHeight: 1.05,
+                  marginBottom: 6,
+                }}
+              >
+                {s.name}
+              </div>
+              <div
+                style={{
+                  color: "var(--text-2)",
+                  fontSize: 13,
+                  lineHeight: 1.5,
+                  marginBottom: 14,
+                  minHeight: 60,
+                }}
+              >
+                {s.description}
+              </div>
+              <div
+                className="row"
+                style={{
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                }}
+              >
+                <div>
+                  <div
+                    className="serif"
+                    style={{ fontSize: 28, letterSpacing: "-0.02em" }}
+                  >
+                    {count.toLocaleString()}
+                  </div>
+                  <div
+                    className="mono text-3"
+                    style={{
+                      fontSize: 10,
+                      letterSpacing: "0.1em",
+                      textTransform: "uppercase",
+                    }}
+                  >
+                    people
+                  </div>
+                </div>
+                <div className="row" style={{ gap: 8 }}>
+                  <Link
+                    href={`/members/segments/${s.id}`}
+                    className="btn btn-ghost hov"
+                    style={{ fontSize: 12.5 }}
+                  >
+                    <Icon name="users" size={12} /> Drill down
+                  </Link>
+                  <Link
+                    href={`/marketing/campaigns?segment=${s.id}`}
+                    className="btn btn-primary hov"
+                    style={{ fontSize: 12.5 }}
+                  >
+                    <Icon name="send" size={12} /> Campaign
+                  </Link>
                 </div>
               </div>
-              <div className="row" style={{ gap: 8 }}>
-                <Link
-                  href={`/members/directory?segment=${s.id}`}
-                  className="btn btn-ghost hov"
-                  style={{ fontSize: 12.5 }}
-                >
-                  <Icon name="users" size={12} /> View
-                </Link>
-                <Link
-                  href={`/marketing/campaigns?segment=${s.id}`}
-                  className="btn btn-primary hov"
-                  style={{ fontSize: 12.5 }}
-                >
-                  <Icon name="send" size={12} /> Campaign
-                </Link>
-              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       <div className="card">
-        <SectionHead
-          right={
-            <button type="button" className="btn btn-link hov" style={{ fontSize: 12 }}>
-              Open editor <Icon name="arrow-right" size={11} />
-            </button>
-          }
-        >
-          Segment composition rules
-        </SectionHead>
+        <SectionHead>How segments are computed</SectionHead>
         <div
           style={{
             display: "grid",
@@ -160,35 +182,35 @@ export default async function MembersSegmentsPage() {
         >
           {[
             {
-              title: "Power users",
+              title: "Active recurring vs Active by attendance",
               rules: [
-                "≥4 bookings in last 14 days",
-                "Membership status = active",
-                "No strikes in last 30 days",
+                "Recurring = current paid Monthly / Annual / Unlimited tier",
+                "By attendance = no recurring, but bought + 4+ visits in 60d",
+                "Membership ≠ credits — credits don't qualify as active",
               ],
             },
             {
-              title: "Churn risk",
+              title: "Hooked thresholds",
               rules: [
-                "No booking in last 21 days",
-                "Was weekly (≥3 bookings) in prior 30 days",
-                "Membership status = active",
+                "Urgent: 5+ visits in last 21 days, no recurring",
+                "Candidate: 4+ visits in last 30 days, not urgent",
+                "Cross threshold = recommend 10% off membership",
               ],
             },
             {
-              title: "Credits expiring 7d",
+              title: "Trial flow",
               rules: [
-                "Has unused credits in pack",
-                "Pack expires within 7 days",
-                "Membership status = active",
+                "In flight: trial tier + status active",
+                "Graduated: trial + active recurring + 2+ purchases in 60d",
+                "Lapsed: trial tier + status not active",
               ],
             },
             {
-              title: "Weekend warriors",
+              title: "Cold lead",
               rules: [
-                "≥80% of bookings on Sat or Sun",
-                "≥4 bookings in last 30 days",
-                "Membership status = active",
+                "Status = 'prospect', no booking, no purchase",
+                "Includes the waiver-only signups + first-class-free no-shows",
+                "Includes leads with no matching member record",
               ],
             },
           ].map((r) => (
@@ -201,7 +223,9 @@ export default async function MembersSegmentsPage() {
                 border: "1px solid var(--border)",
               }}
             >
-              <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>
+              <div
+                style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}
+              >
                 {r.title}
               </div>
               <ul

@@ -81,6 +81,27 @@ defense-in-depth.
   - **Service-role key never leaves the server.** Sync writes only.
 - **Validate at boundaries** — Zod on every API body. Trust internal code past
   that. Don't add error handling for impossible cases.
+- **GloFox treats every signup as a "lead"** — current paying members,
+  ex-members, trial buyers, and one-and-done drop-in customers all show
+  up in `/leads`. There's no GloFox field that flips a "lead" into a
+  "member". Meridian unifies them into a single `people` view (migration
+  0019) keyed on email and derives the actual category from behavior.
+  Never filter the leads sync by status — most legitimate people have
+  null status from GloFox; the sync engine defaults null to "new".
+- **Membership ≠ credits.** Having a credit balance does NOT make
+  someone an "active" customer. Active recurring requires
+  `membership_status = 'active'` AND a recurring tier name (Monthly /
+  Annual / Unlimited, excluding trial). Hundreds of customers hold
+  unused legacy class-pack credits with no recent activity — those are
+  in the `stale-credits` segment, not `active-recurring`.
+- **GloFox membership_status values** — `prospect` / `active` / `paused`.
+  No `cancelled`. To detect churn we synthesize: `paused` OR
+  recurring-tier with no purchase in 60d. Real cancellation history
+  needs a billing-event ingestion that GloFox doesn't expose.
+- **GloFox credits are NOT synced today.** `transformMember` doesn't
+  pull the per-user credit balance from GloFox's `/credits` endpoint.
+  The `stale-credits` segment + Command Center liability KPI return 0
+  until a credit-sync stage is added to `lib/glofox/sync-engine.ts`.
 - **Every tenant table has `studio_id`.** RLS enforces; API routes also
   `requireRole`. Both — defense in depth.
 - **Async-by-default for >1s work** — Inngest write-back queue for Glofox +

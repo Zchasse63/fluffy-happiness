@@ -23,20 +23,21 @@ test.describe("members directory", () => {
       await expect(page.getByText(kpi, { exact: true }).first()).toBeVisible();
     }
 
-    // Segments H2 + the canonical 8 fixture segments
+    // Segments H2 + a sample of the 13 behavioral segments. Names are
+    // defined in lib/fixtures.SEGMENTS and the directory sidebar links
+    // them via /members/segments/[id].
     await expect(
       page.getByRole("heading", { name: "Segments", level: 2 }),
     ).toBeVisible();
     for (const seg of [
-      "All active members",
-      "Power users",
-      "Churn risk",
-      "Credits expiring 7d",
-      "Lapsed 30 days",
-      "Corporate accounts",
-      "Weekend warriors",
+      "Active recurring",
+      "Hooked",
+      "New face",
+      "Cold lead",
     ]) {
-      await expect(page.getByRole("link", { name: new RegExp(seg) })).toBeVisible();
+      await expect(
+        page.getByRole("link", { name: new RegExp(seg, "i") }).first(),
+      ).toBeVisible();
     }
   });
 
@@ -105,14 +106,17 @@ test.describe("members directory", () => {
 });
 
 test.describe("members segments", () => {
-  test("clicking a segment link routes to /members/segments?id=...", async ({
+  test("clicking a segment link routes to /members/segments/[id]", async ({
     page,
   }) => {
     await page.goto("/members/directory");
-    await page.getByRole("link", { name: /power users/i }).click();
-    await page.waitForURL(/\/members\/segments\?id=power/);
+    await page
+      .getByRole("link", { name: /hooked.*urgent/i })
+      .first()
+      .click();
+    await page.waitForURL(/\/members\/segments\/hooked-urgent/);
     await expect(
-      page.getByRole("heading", { name: /segments/i }).first(),
+      page.getByRole("heading", { name: /hooked.*urgent/i }).first(),
     ).toBeVisible();
   });
 });

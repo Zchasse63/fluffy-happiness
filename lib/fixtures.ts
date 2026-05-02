@@ -250,15 +250,43 @@ export const ENGAGEMENT_TONE: Record<
   Lapsed: { fg: "var(--text-3)", soft: "var(--surface-3)" },
 };
 
-export const SEGMENTS = [
-  { id: "all-active", name: "All active members", count: 287, description: "Currently paying and not paused.", auto: true },
-  { id: "power", name: "Power users", count: 42, description: "4+ bookings in last 14 days.", auto: true },
-  { id: "at-risk", name: "Churn risk", count: 23, description: "No booking in 21+ days, was weekly.", auto: true },
-  { id: "expiring-credits", name: "Credits expiring 7d", count: 8, description: "Pack expires within a week, has unused credits.", auto: true },
-  { id: "lapsed-30", name: "Lapsed 30 days", count: 51, description: "No booking in 30+ days.", auto: true },
-  { id: "new-this-month", name: "New this month", count: 14, description: "Joined within the last 30 days.", auto: true },
-  { id: "corporate", name: "Corporate accounts", count: 19, description: "Linked to an active corporate account.", auto: true },
-  { id: "weekend-only", name: "Weekend warriors", count: 28, description: "≥80% of bookings on Sat/Sun.", auto: false },
+/**
+ * Behavioral segments — definitions live in
+ * `supabase/migrations/0019_people_and_segments.sql` (the
+ * `segment_assignments` view's CROSS JOIN LATERAL VALUES). UI metadata
+ * here: display name, one-sentence "what's actionable", priority for
+ * outreach, and the demo count rendered under TEST_AUTH_BYPASS.
+ *
+ * IMPORTANT: GloFox treats every signup as a "lead" regardless of
+ * whether they later became a paying member. Membership ≠ credits — a
+ * person can have credits without an active recurring membership. The
+ * "Active recurring" vs "Active by attendance" split reflects that.
+ */
+export type SegmentMeta = {
+  id: string;
+  name: string;
+  count: number;
+  description: string;
+  /** P0 = call today; P1 = email this week; P2 = batch nurture. */
+  priority: "P0" | "P1" | "P2";
+  auto: true;
+};
+
+export const SEGMENTS: SegmentMeta[] = [
+  // Most actionable first.
+  { id: "hooked-urgent",       name: "Hooked — urgent",       count: 5,   description: "5+ visits in last 21 days, not on recurring. Highest conversion likelihood — offer a 10% off membership today.", priority: "P0", auto: true },
+  { id: "hooked-candidate",    name: "Hooked — candidate",    count: 12,  description: "4+ visits in last 30 days, not on recurring. Soft membership nudge.",                                            priority: "P0", auto: true },
+  { id: "trial-in-flight",     name: "Trial in flight",       count: 18,  description: "On a 2-week trial, last 21 days. Hand-deliver the conversion ask before it ends.",                              priority: "P1", auto: true },
+  { id: "new-face",            name: "New face, not converted", count: 47, description: "First-ever visit in last 30 days, no membership purchased. The biggest source of new MRR.",                  priority: "P1", auto: true },
+  { id: "trial-lapsed",        name: "Trial lapsed",          count: 23,  description: "Bought a trial, no purchase since 30+ days. Re-engage before the relationship goes cold.",                      priority: "P1", auto: true },
+  { id: "cooling",             name: "Cooling",               count: 14,  description: "Was attending regularly (4+ in 60d), zero visits in last 21 days. Catch them before churn.",                    priority: "P1", auto: true },
+  { id: "stale-credits",       name: "Stale credits",         count: 87,  description: "Has unused credits AND no visit in 60 days. We owe them sessions — gentle nudge in.",                            priority: "P1", auto: true },
+  { id: "cancelled-recurring", name: "Cancelled recurring",   count: 31,  description: "Was on a recurring plan, cancelled. Past loyal — surface the new memberships.",                                  priority: "P2", auto: true },
+  { id: "active-recurring",    name: "Active recurring",      count: 162, description: "Current recurring membership (Monthly Unlimited / Monthly / Annual).",                                            priority: "P2", auto: true },
+  { id: "active-attendance",   name: "Active by attendance",  count: 45,  description: "No recurring, but bought + attended ≥4× in last 60 days. Treat as active for retention.",                          priority: "P2", auto: true },
+  { id: "trial-graduated",     name: "Trial graduated",       count: 9,   description: "Bought a trial AND converted to recurring or pack. Track conversion-rate health.",                               priority: "P2", auto: true },
+  { id: "drop-in-only",        name: "Drop-in only",          count: 41,  description: "Only one-time drop-ins, no recurring or pack. Steady but limited.",                                              priority: "P2", auto: true },
+  { id: "cold-lead",           name: "Cold lead",             count: 184, description: "Registered, never booked, never purchased. Includes the waiver-only signups that never made it onto a schedule.", priority: "P2", auto: true },
 ];
 
 // ─── Revenue ──────────────────────────────────────────────────────────

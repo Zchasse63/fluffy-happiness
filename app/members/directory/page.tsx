@@ -129,7 +129,7 @@ export default async function MembersDirectoryPage({
               return (
                 <Link
                   key={s.id}
-                  href={`/members/segments?id=${s.id}`}
+                  href={`/members/segments/${s.id}`}
                   className="hov"
                   style={{
                     display: "flex",
