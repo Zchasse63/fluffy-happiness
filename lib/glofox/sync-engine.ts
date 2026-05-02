@@ -200,26 +200,33 @@ export async function runGlofoxSync(
     const programMap = buildIdMap(programLookup.data);
     const trainerMap = buildIdMap(trainerLookup.data);
 
-    const classRows = classes.map((c) => {
-      const t = transformClassInstance(c, studioId, c.program_id, c.trainer_id);
-      return {
-        studio_id: t.studio_id,
-        glofox_id: t.glofox_id,
-        title: t.title,
-        starts_at: t.starts_at,
-        ends_at: t.ends_at,
-        capacity: t.capacity,
-        booked_count: t.booked_count,
-        status: t.status,
-        is_one_off: t.is_one_off,
-        program_id: t.programGlofoxId
-          ? programMap.get(t.programGlofoxId) ?? null
-          : null,
-        trainer_id: t.trainerGlofoxId
-          ? trainerMap.get(t.trainerGlofoxId) ?? null
-          : null,
-      };
-    });
+    const classRows = classes
+      .map((c) => {
+        const t = transformClassInstance(c, studioId, c.program_id, c.trainer_id);
+        return {
+          studio_id: t.studio_id,
+          glofox_id: t.glofox_id,
+          title: t.title,
+          starts_at: t.starts_at,
+          ends_at: t.ends_at,
+          capacity: t.capacity,
+          booked_count: t.booked_count,
+          status: t.status,
+          is_one_off: t.is_one_off,
+          program_id: t.programGlofoxId
+            ? programMap.get(t.programGlofoxId) ?? null
+            : null,
+          trainer_id: t.trainerGlofoxId
+            ? trainerMap.get(t.trainerGlofoxId) ?? null
+            : null,
+        };
+      })
+      // Glofox occasionally returns event records without a starts_at —
+      // template stubs, drafts, recurring-rule rows. The class_instances
+      // schema requires starts_at NOT NULL, so we drop these rather
+      // than failing the entire sync. They'll be re-synced once Glofox
+      // assigns them an actual time.
+      .filter((row) => row.starts_at != null);
 
     for (let i = 0; i < classRows.length; i += CHUNK_SIZE) {
       const chunk = classRows.slice(i, i + CHUNK_SIZE);

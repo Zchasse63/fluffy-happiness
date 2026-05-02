@@ -9,6 +9,7 @@
  */
 
 import { STUDIO_ID } from "@/lib/constants";
+import { fixtureFallback } from "@/lib/data/_log";
 import { createSupabaseServer } from "@/lib/supabase/server";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -68,7 +69,7 @@ export async function loadRetailProducts(): Promise<RetailProduct[]> {
     .order("name");
 
   const rows = data ?? [];
-  if (!rows.length) return PRODUCT_FIXTURE;
+  if (!rows.length) return fixtureFallback(PRODUCT_FIXTURE, []);
 
   // Sold-30 heuristic: count completed retail transactions with a
   // description matching the product name (case-insensitive).
@@ -162,7 +163,7 @@ export async function loadGiftCards(): Promise<GiftCardRow[]> {
     .returns<CardRow[]>();
 
   const rows = data ?? [];
-  if (!rows.length) return CARD_FIXTURE;
+  if (!rows.length) return fixtureFallback(CARD_FIXTURE, []);
 
   return rows.map<GiftCardRow>((r, i) => ({
     id: r.id,

@@ -7,6 +7,7 @@
 
 import { dateKey, withKpiCache, type KpiBucket } from "@/lib/cache";
 import { STUDIO_ID } from "@/lib/constants";
+import { fixtureFallback } from "@/lib/data/_log";
 import {
   DUNNING,
   PLANS,
@@ -159,7 +160,7 @@ export async function loadDunning(): Promise<DunningRecord[]> {
     .returns<DunningQueryRow[]>();
 
   const rows = data ?? [];
-  if (!rows.length) return DUNNING;
+  if (!rows.length) return fixtureFallback(DUNNING, []);
 
   return rows.map((r, i) => ({
     id: r.id,
@@ -282,7 +283,7 @@ export async function loadMembershipPlans(): Promise<MembershipPlan[]> {
     .order("price_cents", { ascending: false });
 
   const rows = plans ?? [];
-  if (!rows.length) return PLANS;
+  if (!rows.length) return fixtureFallback(PLANS, []);
 
   // Active member counts aggregated in-memory — one round trip total
   // (vs N+1 with one query per plan). At ~1k active members the

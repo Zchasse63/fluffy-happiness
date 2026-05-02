@@ -10,6 +10,7 @@
  */
 
 import { STUDIO_ID } from "@/lib/constants";
+import { inBypassMode } from "@/lib/data/_log";
 import {
   KIND_META,
   SCHED_DATES as FIXTURE_DATES,
@@ -69,12 +70,34 @@ export async function loadWeekGrid(): Promise<WeekGrid> {
 
   const rows = data ?? [];
 
+  // Live-data path returns the real week (or an empty 7-day grid if
+  // class_instances is empty for this week — the calendar component
+  // renders an empty-state row in that case). The fixture week is only
+  // used under TEST_AUTH_BYPASS so the e2e suite has stable data.
+  const realDates: string[] = [];
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(monday);
+    d.setDate(d.getDate() + i);
+    realDates.push(
+      d.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+    );
+  }
+  const todayIdx = ((new Date().getDay() + 6) % 7) as number;
+
   if (!rows.length) {
+    if (inBypassMode()) {
+      return {
+        days: SCHED_DAYS,
+        dates: FIXTURE_DATES,
+        todayIdx,
+        week: FIXTURE_WEEK,
+      };
+    }
     return {
       days: SCHED_DAYS,
-      dates: FIXTURE_DATES,
-      todayIdx: ((new Date().getDay() + 6) % 7) as number,
-      week: FIXTURE_WEEK,
+      dates: realDates,
+      todayIdx,
+      week: Array.from({ length: 7 }, () => [] as ClassSlot[]),
     };
   }
 

@@ -8,7 +8,7 @@
 
 import { dateKey, withKpiCache } from "@/lib/cache";
 import { STUDIO_ID } from "@/lib/constants";
-import { logQueryError } from "@/lib/data/_log";
+import { fixtureFallback, logQueryError } from "@/lib/data/_log";
 import {
   MEMBER_PROFILE_BOOKINGS,
   MEMBERS,
@@ -115,7 +115,10 @@ export async function listMembers(
   // "no matches", return []. Use rawSearch — if the user typed
   // something that sanitised to empty, that still expressed intent.
   // Fixtures only when nothing was narrowing the query.
-  if (!rows.length) return rawSearch || status ? [] : MEMBERS;
+  if (!rows.length) {
+    if (rawSearch || status) return [];
+    return fixtureFallback(MEMBERS, []);
+  }
 
   // Pull check-in history for these members across the last 28 days
   // in a single round trip; bucket per-member into recent (0–14d) +
@@ -310,7 +313,7 @@ export async function loadMemberBookings(
     .returns<BookingQueryRow[]>();
 
   const rows = data ?? [];
-  if (!rows.length) return MEMBER_PROFILE_BOOKINGS;
+  if (!rows.length) return fixtureFallback(MEMBER_PROFILE_BOOKINGS, []);
 
   return rows.map((r) => {
     const start = r.class_instances?.starts_at;

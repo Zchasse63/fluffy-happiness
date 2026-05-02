@@ -5,6 +5,7 @@
  */
 
 import { STUDIO_ID } from "@/lib/constants";
+import { inBypassMode } from "@/lib/data/_log";
 import { TRAINERS } from "@/lib/fixtures";
 import { createSupabaseServer } from "@/lib/supabase/server";
 
@@ -53,6 +54,7 @@ export async function loadStaff(): Promise<StaffMember[]> {
   const profileRows = profiles ?? [];
 
   if (!profileRows.length) {
+    if (!inBypassMode()) return [];
     return TRAINERS.map((t, i) => ({
       id: t.id,
       name: t.name,

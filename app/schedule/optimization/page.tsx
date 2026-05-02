@@ -21,6 +21,7 @@ import {
 } from "@/components/primitives";
 import { AnthropicNotConfigured } from "@/lib/ai/claude";
 import { generateScheduleRecommendations } from "@/lib/ai/schedule-recommendations";
+import { fixtureFallback } from "@/lib/data/_log";
 import { loadDemandHeatmap } from "@/lib/data/schedule";
 import { DEMAND_HEATMAP, SCHED_DAYS } from "@/lib/fixtures";
 import { createSupabaseServer } from "@/lib/supabase/server";
@@ -68,13 +69,23 @@ export default async function ScheduleOptimizationPage() {
 
   const [live, recs] = await Promise.all([
     loadDemandHeatmap(30),
+    // Don't let any AI failure 5xx the whole page — fall through to the
+    // FALLBACK_RECS panel instead. Was previously throwing on every
+    // non-AnthropicNotConfigured error (e.g. transient API errors,
+    // empty class data) and that's the user-reported 5xx symptom.
     generateScheduleRecommendations(supabase).catch((err) => {
       if (err instanceof AnthropicNotConfigured) return [] as never;
-      throw err;
+      // eslint-disable-next-line no-console
+      console.error("[schedule/optimization] generateRecs failed", err);
+      return [] as never;
     }),
   ]);
   const hasLive = live.some((row) => row.some((v) => v > 0));
-  const heatmap = hasLive ? live : DEMAND_HEATMAP;
+  // Empty heatmap (no class data yet) renders as zeros in live mode;
+  // bypass mode keeps the demo heatmap so the e2e suite has stable data.
+  const heatmap = hasLive
+    ? live
+    : fixtureFallback(DEMAND_HEATMAP, Array.from({ length: 7 }, () => [0, 0, 0, 0]));
   const RECS: Insight[] = recs.length
     ? recs.map((r) => ({
         rank: r.rank,

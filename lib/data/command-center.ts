@@ -7,7 +7,7 @@
 import type { Insight } from "@/components/primitives";
 import { dateKey, withKpiCache } from "@/lib/cache";
 import { STUDIO_ID } from "@/lib/constants";
-import { logQueryError } from "@/lib/data/_log";
+import { fixtureFallback, logQueryError } from "@/lib/data/_log";
 import {
   ACTIVITY,
   WEEK_REVIEW,
@@ -447,7 +447,7 @@ export async function loadActivityFeed(): Promise<ActivityEntry[]> {
   logQueryError("command-center.activityFeed", error);
 
   const rows = data ?? [];
-  if (!rows.length) return ACTIVITY;
+  if (!rows.length) return fixtureFallback(ACTIVITY, []);
 
   return rows.map((r) => {
     const { what, tag } = describeActivity(r.type, r.payload);
@@ -570,8 +570,10 @@ export async function loadWeeklyReview(): Promise<WeekReviewRow[]> {
   const thisNew = thisWeekMembers.count ?? 0;
   const priorNew = priorWeekMembers.count ?? 0;
 
-  // If there's literally nothing for either week, fall back to the
-  // authored fixture so the panel doesn't look broken.
+  // Empty everywhere. In TEST_AUTH_BYPASS mode return the authored
+  // fixture so the e2e suite has stable data; in live mode return the
+  // empty zero-rows shape so the page renders an honest "no data yet"
+  // panel instead of fictional names (the fixture-leak bug).
   if (
     thisRev === 0 &&
     priorRev === 0 &&
@@ -580,7 +582,7 @@ export async function loadWeeklyReview(): Promise<WeekReviewRow[]> {
     thisNew === 0 &&
     priorNew === 0
   ) {
-    return WEEK_REVIEW;
+    return fixtureFallback(WEEK_REVIEW, []);
   }
 
   const revDelta = pctDelta(thisRev, priorRev);

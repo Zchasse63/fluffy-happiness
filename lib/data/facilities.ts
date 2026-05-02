@@ -7,6 +7,7 @@
  */
 
 import { STUDIO_ID } from "@/lib/constants";
+import { fixtureFallback } from "@/lib/data/_log";
 import { createSupabaseServer } from "@/lib/supabase/server";
 
 export type FacilityResource = {
@@ -79,7 +80,7 @@ export async function loadFacilities(): Promise<FacilityResource[]> {
     .order("name");
 
   const rows = resources ?? [];
-  if (!rows.length) return FIXTURE;
+  if (!rows.length) return fixtureFallback(FIXTURE, []);
 
   // Last service + next service per resource — single round-trip,
   // bucket per resource_id with the most recent record.

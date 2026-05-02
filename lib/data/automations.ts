@@ -9,6 +9,7 @@
  */
 
 import { STUDIO_ID } from "@/lib/constants";
+import { fixtureFallback } from "@/lib/data/_log";
 import { AUTOMATIONS, type Automation } from "@/lib/fixtures";
 import { createSupabaseServer } from "@/lib/supabase/server";
 
@@ -30,7 +31,7 @@ export async function loadAutomationFlows(): Promise<Automation[]> {
     .returns<FlowRow[]>();
 
   const rows = flows ?? [];
-  if (!rows.length) return AUTOMATIONS;
+  if (!rows.length) return fixtureFallback(AUTOMATIONS, []);
 
   // Count enrollments per flow in a single round trip.
   const flowIds = rows.map((r) => r.id);

@@ -5,6 +5,7 @@
  */
 
 import { STUDIO_ID } from "@/lib/constants";
+import { fixtureFallback } from "@/lib/data/_log";
 import { createSupabaseServer } from "@/lib/supabase/server";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -54,7 +55,7 @@ export async function loadCorporateAccounts(): Promise<CorporateAccount[]> {
     .order("name");
 
   const rows = accounts ?? [];
-  if (!rows.length) return FIXTURE;
+  if (!rows.length) return fixtureFallback(FIXTURE, []);
 
   // Member counts per account, single query.
   const { data: memberRows } = await supabase

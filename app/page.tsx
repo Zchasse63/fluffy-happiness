@@ -29,6 +29,7 @@ import {
   type Kpi,
 } from "@/components/primitives";
 import { requireProfile } from "@/lib/auth";
+import { fixtureFallback } from "@/lib/data/_log";
 import {
   loadActivityFeed,
   loadFocusQueue,
@@ -71,9 +72,13 @@ export default async function CommandCenterPage() {
     loadActivityFeed(),
     loadWeeklyReview(),
   ]);
+  // In live mode with no briefing yet, render an empty insights array
+  // so the page falls through to its "no briefing yet" state instead
+  // of showing the fictional Whitney/Ben Kniesly/Cigar City cards. The
+  // bypass-mode demo continues to use COMMAND_INSIGHTS for stable e2e.
   const liveInsights = briefing?.insights.length
     ? briefing.insights
-    : COMMAND_INSIGHTS;
+    : fixtureFallback(COMMAND_INSIGHTS, []);
   const briefingTs = briefing
     ? briefing.generatedAt.toLocaleTimeString("en-US", {
         hour: "numeric",
@@ -130,9 +135,18 @@ export default async function CommandCenterPage() {
             spark: COMMAND_KPIS[4].spark,
           },
         ]
-      : COMMAND_KPIS;
-  const liveFocus = focus.length ? focus : FOCUS_QUEUE;
-  const liveToday = today.length ? today : TODAY_SCHEDULE;
+      : fixtureFallback(COMMAND_KPIS, [
+          // Live mode, totally empty: still render a 5-card strip so the
+          // layout doesn't collapse, but with explicit "—" values + a
+          // "no data yet" foot label.
+          { label: "Revenue · today", value: "—", delta: "—", foot: "no data yet", dot: "var(--accent)", spark: [0,0,0,0,0,0,0] },
+          { label: "Bookings", value: "—", delta: "—", foot: "no data yet", dot: "var(--teal)", spark: [0,0,0,0,0,0,0] },
+          { label: "Walk-ins", value: "—", delta: "—", foot: "no data yet", dot: "var(--cobalt)", spark: [0,0,0,0,0,0,0] },
+          { label: "No-shows", value: "—", delta: "—", foot: "no data yet", dot: "var(--moss)", spark: [0,0,0,0,0,0,0] },
+          { label: "Attendance rate", value: "—", delta: "—", foot: "no data yet", dot: "var(--plum)", spark: [0,0,0,0,0,0,0] },
+        ]);
+  const liveFocus = focus.length ? focus : fixtureFallback(FOCUS_QUEUE, []);
+  const liveToday = today.length ? today : fixtureFallback(TODAY_SCHEDULE, []);
 
   return (
     <>

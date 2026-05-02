@@ -5,6 +5,7 @@
  */
 
 import { STUDIO_ID } from "@/lib/constants";
+import { fixtureFallback } from "@/lib/data/_log";
 import { LEADS, type Lead, type LeadStatus } from "@/lib/fixtures";
 import { createSupabaseServer } from "@/lib/supabase/server";
 
@@ -58,7 +59,7 @@ export async function loadLeads(): Promise<Lead[]> {
     .returns<LeadQueryRow[]>();
 
   const rows = data ?? [];
-  if (!rows.length) return LEADS;
+  if (!rows.length) return fixtureFallback(LEADS, []);
 
   return rows.map((r, i) => ({
     id: r.id,

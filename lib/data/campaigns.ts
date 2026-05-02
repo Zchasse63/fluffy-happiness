@@ -4,7 +4,7 @@
  */
 
 import { STUDIO_ID } from "@/lib/constants";
-import { logQueryError } from "@/lib/data/_log";
+import { fixtureFallback, logQueryError } from "@/lib/data/_log";
 import { CAMPAIGNS, type Campaign } from "@/lib/fixtures";
 import { createSupabaseServer } from "@/lib/supabase/server";
 
@@ -59,7 +59,7 @@ export async function loadCampaigns(): Promise<Campaign[]> {
   logQueryError("campaigns.list", error);
 
   const rows = data ?? [];
-  if (!rows.length) return CAMPAIGNS;
+  if (!rows.length) return fixtureFallback(CAMPAIGNS, []);
 
   return rows
     .filter((r) => r.status !== "cancelled")

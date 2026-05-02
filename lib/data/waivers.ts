@@ -5,6 +5,7 @@
  */
 
 import { STUDIO_ID } from "@/lib/constants";
+import { fixtureFallback } from "@/lib/data/_log";
 import { createSupabaseServer } from "@/lib/supabase/server";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -83,7 +84,7 @@ export async function loadWaivers(): Promise<WaiverRow[]> {
     .returns<Row[]>();
 
   const rows = data ?? [];
-  if (!rows.length) return FIXTURE;
+  if (!rows.length) return fixtureFallback(FIXTURE, []);
 
   return rows.map<WaiverRow>((r, i) => ({
     id: r.id,
