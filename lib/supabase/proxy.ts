@@ -16,6 +16,12 @@ const PUBLIC_PREFIXES = [
   "/api/webhooks", // Stripe / Resend POST here without our cookie
   "/api/inngest", // Inngest signing-key verifies; cookie auth is wrong layer
   "/api/health",
+  // Glofox sync supports two trigger paths: an authed dashboard call
+  // (cookie auth + requireRole) AND an Authorization: Bearer
+  // <CRON_SECRET> header for cron jobs and ops backfills. The route
+  // handler enforces both — the proxy just needs to let the request
+  // through without redirecting the no-cookie cron path to /login.
+  "/api/glofox/sync",
 ];
 
 function isPublic(pathname: string) {
