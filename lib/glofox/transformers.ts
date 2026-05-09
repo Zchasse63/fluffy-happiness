@@ -262,7 +262,11 @@ export function transformTransaction(
       studio_id: studioId,
       glofox_id: t._id,
       type: mapTransactionType(t.type),
-      status: t.status,
+      // Mirror the booking/class status normalizers: every status
+      // field gets case-insensitively normalized so revenue queries
+      // filtering on status='completed' don't silently miss rows if
+      // Glofox starts emitting uppercase.
+      status: mapTransactionStatus(t.status),
       amount_cents: dollarsToCents(t.amount),
       currency: t.currency || "USD",
       description: t.description ?? null,
@@ -271,6 +275,28 @@ export function transformTransaction(
     memberGlofoxId: t.metadata?.user_id,
     classGlofoxId: t.metadata?.class_id,
   };
+}
+
+function mapTransactionStatus(raw: string | undefined | null) {
+  switch ((raw ?? "").toLowerCase()) {
+    case "completed":
+    case "paid":
+    case "settled":
+      return "completed";
+    case "failed":
+    case "declined":
+      return "failed";
+    case "refunded":
+      return "refunded";
+    case "pending":
+    case "processing":
+      return "pending";
+    default:
+      // Unknown statuses pass through as-is so they're queryable in
+      // raw form. Logging would help diagnose unexpected values once
+      // observability is wired.
+      return raw ?? "pending";
+  }
 }
 
 function mapTransactionType(t: string | undefined): string {

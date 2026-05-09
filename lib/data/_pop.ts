@@ -150,18 +150,40 @@ export async function loadPoPDelta(
     currentN = r1.count ?? 0;
     previousN = r2.count ?? 0;
   } else {
+    // sum_cents path: client-side reduction over fetched rows.
+    // Supabase `.select()` caps at 1000 rows by default; any window
+    // with > 1000 matching rows would silently undercount. We
+    // explicitly raise the page size to 50000 (project headroom +
+    // current scale: TSG processes ~50 transactions/month) but the
+    // proper long-term fix is a server-side `sum()` RPC. Logged in
+    // specs/reports/qa-completion-2026-05-08.md as a follow-up.
+    const PAGE_CAP = 50000;
     const [r1, r2] = await Promise.all([
-      buildScope(currentStart, now, false) as unknown as Promise<{
-        data: Record<string, unknown>[] | null;
-        error: unknown;
-      }>,
-      buildScope(previousStart, currentStart, false) as unknown as Promise<{
-        data: Record<string, unknown>[] | null;
-        error: unknown;
-      }>,
+      (
+        buildScope(currentStart, now, false) as unknown as {
+          range: (a: number, b: number) => Promise<{
+            data: Record<string, unknown>[] | null;
+            error: unknown;
+          }>;
+        }
+      ).range(0, PAGE_CAP - 1),
+      (
+        buildScope(previousStart, currentStart, false) as unknown as {
+          range: (a: number, b: number) => Promise<{
+            data: Record<string, unknown>[] | null;
+            error: unknown;
+          }>;
+        }
+      ).range(0, PAGE_CAP - 1),
     ]);
     logQueryError(`pop.${table}.sum.current`, r1.error);
     logQueryError(`pop.${table}.sum.previous`, r2.error);
+    if ((r1.data?.length ?? 0) === PAGE_CAP || (r2.data?.length ?? 0) === PAGE_CAP) {
+      logQueryError(
+        `pop.${table}.sum.cap-hit`,
+        new Error(`PoP sum hit ${PAGE_CAP}-row cap; result is undercounted.`),
+      );
+    }
     currentN = (r1.data ?? []).reduce(
       (s, r) => s + ((r[sumColumn] as number) ?? 0),
       0,
