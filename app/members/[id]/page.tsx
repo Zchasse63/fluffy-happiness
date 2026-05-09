@@ -17,51 +17,28 @@ import { OverviewTab } from "@/components/member-profile/overview-tab";
 import { PaymentsTab } from "@/components/member-profile/payments-tab";
 import { ProfileHeader } from "@/components/member-profile/profile-header";
 import { ProfileTabs } from "@/components/member-profile/tabs";
+import { inBypassMode } from "@/lib/data/_log";
 import {
   loadMemberActivity,
   loadMemberBookings,
+  loadMemberById,
   loadMemberPayments,
 } from "@/lib/data/members";
 import {
   MEMBER_PROFILE_TABS,
   MEMBERS,
-  type Member,
   type MemberProfileTab,
 } from "@/lib/fixtures";
-import { createSupabaseServer } from "@/lib/supabase/server";
 
-async function loadMember(id: string): Promise<Member | null> {
-  const supabase = await createSupabaseServer();
-  const { data } = await supabase
-    .from("members")
-    .select(
-      "id, membership_status, membership_tier, plan_code, plan_price_cents, membership_credits, flex_credits, wallet_balance_cents, strike_count, glofox_id, profiles!inner(full_name, email, phone)",
-    )
-    .eq("id", id)
-    .maybeSingle();
-  if (data) {
-    type Row = NonNullable<typeof data>;
-    const r = data as Row & {
-      profiles: { full_name: string; email: string | null; phone: string | null };
-    };
-    return {
-      id: r.id,
-      name: r.profiles.full_name,
-      email: r.profiles.email ?? "",
-      phone: r.profiles.phone ?? "",
-      tier: (r.membership_tier as Member["tier"]) ?? "Monthly Unlimited",
-      status: (r.membership_status as Member["status"]) ?? "active",
-      engagement: "Active",
-      credits: r.membership_credits + r.flex_credits,
-      walletCents: r.wallet_balance_cents,
-      ltv: 0,
-      lastVisit: "—",
-      joined: "—",
-      seed: 0,
-      strikes: r.strike_count,
-    };
-  }
-  return MEMBERS.find((m) => m.id === id) ?? null;
+async function loadMember(id: string) {
+  // Live path — uses inferEngagement, real lastVisit, real LTV.
+  const live = await loadMemberById(id);
+  if (live) return live;
+  // Fixture fallback only under TEST_AUTH_BYPASS (e2e). In a real
+  // operator session this returns null and the page renders notFound(),
+  // which is the correct UX — fictional members must not leak into prod.
+  if (inBypassMode()) return MEMBERS.find((m) => m.id === id) ?? null;
+  return null;
 }
 
 export default async function MemberProfilePage({
