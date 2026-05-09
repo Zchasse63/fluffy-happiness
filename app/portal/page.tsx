@@ -14,7 +14,6 @@ import { Icon } from "@/components/icon";
 import { PageHero, SectionHead } from "@/components/primitives";
 import { requireProfile } from "@/lib/auth";
 import { loadPortal } from "@/lib/data/portal";
-import { formatCurrency } from "@/lib/utils";
 
 export default async function PortalPage() {
   const profile = await requireProfile();
@@ -159,45 +158,26 @@ export default async function PortalPage() {
             <strong>Operations · Payroll</strong>; per-trainer slip
             persistence lands with the next iteration.
           </div>
-          {/*
-           * Static example rows kept for design parity. They will be
-           * replaced by a per-trainer view of the published payroll
-           * periods table once the publication flow is wired.
-           */}
-          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            {[
-              { period: "Apr 14 → Apr 27", classes: 18, amount: 162500, status: "Pending approval" },
-              { period: "Mar 31 → Apr 13", classes: 16, amount: 145800, status: "Paid Apr 14" },
-            ].map((s, i) => (
-              <div
-                key={i}
-                className="row"
-                style={{
-                  gap: 12,
-                  padding: "12px 14px",
-                  borderRadius: 12,
-                  background: "var(--surface-2)",
-                  border: "1px solid var(--border)",
-                  justifyContent: "space-between",
-                  opacity: 0.7,
-                }}
-              >
-                <div>
-                  <div style={{ fontSize: 13.5, fontWeight: 600 }}>
-                    {s.period}
-                  </div>
-                  <div className="muted" style={{ fontSize: 11.5 }}>
-                    {s.classes} classes · {s.status}
-                  </div>
-                </div>
-                <span
-                  className="mono"
-                  style={{ fontSize: 16, fontWeight: 600 }}
-                >
-                  {formatCurrency(s.amount)}
-                </span>
-              </div>
-            ))}
+          {/* Pre-2026-05-08 this section rendered hardcoded fictional
+              pay stubs ("Apr 14 → Apr 27 · 18 classes · $1,625 ·
+              Pending approval"). Trainers saw fake amounts every visit.
+              Removed; restored as a real per-trainer payroll-period
+              view once the publication flow lands
+              (specs/audits/qa-discovery-2026-05-08.md §B.2). */}
+          <div
+            className="muted"
+            style={{
+              padding: "16px 14px",
+              borderRadius: 12,
+              background: "var(--surface-2)",
+              border: "1px solid var(--border)",
+              fontSize: 13,
+              lineHeight: 1.6,
+            }}
+          >
+            No published pay stubs yet. The current period and totals
+            are calculated live above; per-period stub history will
+            appear here once payroll publication is wired.
           </div>
         </div>
       </div>

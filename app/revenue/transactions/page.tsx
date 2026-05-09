@@ -8,6 +8,8 @@
 
 export const dynamic = "force-dynamic";
 
+import Link from "next/link";
+
 import { Avatar } from "@/components/avatar";
 import { EmptyTableState } from "@/components/empty-state";
 import { Icon } from "@/components/icon";
@@ -19,8 +21,15 @@ import {
 import { ToneBadge } from "@/components/status-pill";
 import { TransactionActionButton } from "@/components/transaction-action-button";
 import { loadTransactions } from "@/lib/data/revenue";
-import { TRANSACTION_KIND_META } from "@/lib/fixtures";
+import { TRANSACTION_KIND_META, type Transaction } from "@/lib/fixtures";
 import { formatCurrency } from "@/lib/utils";
+
+const STATUS_FILTERS: Array<{ label: string; value: Transaction["status"] | null }> = [
+  { label: "All", value: null },
+  { label: "Completed", value: "completed" },
+  { label: "Refunded", value: "refunded" },
+  { label: "Failed", value: "failed" },
+];
 
 const TABLE_COLUMNS = [
   { label: "Time" },
@@ -35,12 +44,20 @@ const TABLE_COLUMNS = [
 export default async function RevenueTransactionsPage({
   searchParams,
 }: {
-  searchParams?: Promise<{ q?: string }>;
+  searchParams?: Promise<{ q?: string; status?: string }>;
 }) {
   const params = (await searchParams) ?? {};
   const search = params.q ?? "";
+  // Validate status param against the allowed enum so a hostile URL
+  // can't smuggle arbitrary text into the SQL filter.
+  const statusParam = STATUS_FILTERS.find((f) => f.value === params.status)?.value
+    ?? null;
 
-  const txns = await loadTransactions({ limit: 100, search });
+  const txns = await loadTransactions({
+    limit: 100,
+    search,
+    status: statusParam ?? undefined,
+  });
 
   return (
     <>
@@ -74,11 +91,28 @@ export default async function RevenueTransactionsPage({
           }}
         >
           <SearchBar placeholder="Search by member, amount, or txn id…" />
+          {/* Pre-2026-05-08 these tabs were visual-only (no href, no
+              handler). Now wired through the ?status= query param. */}
           <span className="tabs">
-            <span className="tab active">All</span>
-            <span className="tab">Completed</span>
-            <span className="tab">Refunded</span>
-            <span className="tab">Failed</span>
+            {STATUS_FILTERS.map((f) => {
+              const isActive = (statusParam ?? null) === f.value;
+              const href = (() => {
+                const u = new URLSearchParams();
+                if (search) u.set("q", search);
+                if (f.value) u.set("status", f.value);
+                const qs = u.toString();
+                return qs ? `?${qs}` : "?";
+              })();
+              return (
+                <Link
+                  key={f.label}
+                  href={href}
+                  className={`tab${isActive ? " active" : ""}`}
+                >
+                  {f.label}
+                </Link>
+              );
+            })}
           </span>
         </div>
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
