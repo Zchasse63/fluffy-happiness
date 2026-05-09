@@ -93,19 +93,22 @@ export function transformClassInstance(
   programGlofoxId: string | undefined,
   trainerGlofoxId: string | undefined,
 ) {
+  // Glofox returns `time_start` as unix seconds and `duration` as
+  // minutes. There's no `ends_at` field — synthesize it. Pre-2026-05-08
+  // we read `c.starts_at` (string) which was always undefined; the
+  // sync engine then dropped every row at the starts_at-not-null filter.
+  const startsMs = (c.time_start ?? 0) * 1000;
+  const endsMs = startsMs + (c.duration ?? 60) * 60 * 1000;
   return {
     studio_id: studioId,
     glofox_id: c._id,
     title: c.name ?? "Class",
-    starts_at: c.starts_at,
-    ends_at: c.ends_at,
-    capacity: c.capacity,
-    booked_count: c.booked_count ?? 0,
-    status: (c.status ?? "scheduled") as
-      | "scheduled"
-      | "live"
-      | "completed"
-      | "cancelled",
+    starts_at: c.time_start ? new Date(startsMs).toISOString() : null,
+    ends_at: c.time_start ? new Date(endsMs).toISOString() : null,
+    capacity: c.size,
+    booked_count: c.booked ?? 0,
+    waitlist_count: c.waiting ?? 0,
+    status: normalizeClassStatus(c.status),
     is_one_off: false,
     /** caller resolves these to UUIDs via lookup map */
     programGlofoxId,
@@ -125,6 +128,7 @@ export function transformBooking(
     glofox_write_status: string;
     glofox_synced_at: string;
     cancelled_at: string | null;
+    is_from_waiting_list: boolean;
   };
   classGlofoxId: string;
   memberGlofoxId: string;
@@ -137,27 +141,103 @@ export function transformBooking(
       source: b.source === "classpass" ? "classpass" : "glofox",
       glofox_write_status: "synced",
       glofox_synced_at: new Date().toISOString(),
-      cancelled_at: b.cancelled_at ?? null,
+      // Glofox uses American spelling `canceled_at`; project DB column
+      // retains British `cancelled_at`. Date format may be ISO or the
+      // legacy "YYYY-MM-DD HH:mm:ss" UTC string.
+      cancelled_at: parseGlofoxDate(b.canceled_at ?? null),
+      is_from_waiting_list: b.is_from_waiting_list ?? false,
     },
-    classGlofoxId: b.class_id,
+    classGlofoxId: b.event_id,
     memberGlofoxId: b.user_id,
   };
 }
 
-function mapBookingStatus(s: GlofoxBooking["status"]) {
-  switch (s) {
-    case "checked_in":
+/**
+ * Glofox booking status enums are uppercase strings; map case-insensitively
+ * onto Meridian's lowercase enum. Anything we don't recognize falls back to
+ * "booked" so an unfamiliar status never silently becomes "cancelled" — but
+ * cases we DO know (check-in, waitlist, no-show, cancellation) have to
+ * round-trip cleanly so downstream pages render the right state.
+ */
+function mapBookingStatus(raw: string | undefined | null) {
+  switch ((raw ?? "").toUpperCase()) {
+    case "CHECKED_IN":
+    case "ATTENDED":
       return "checked_in";
-    case "cancelled":
+    case "CANCELED":
+    case "CANCELLED":
       return "cancelled";
-    case "no_show":
+    case "NO_SHOW":
+    case "DID_NOT_ATTEND":
       return "no_show";
-    case "waitlisted":
+    case "WAITLIST":
+    case "ON_WAITLIST":
+    case "WAITING":
       return "waitlisted";
-    case "booked":
+    case "BOOKED":
+    case "CONFIRMED":
     default:
       return "booked";
   }
+}
+
+/**
+ * Glofox class/event status enum is wide and includes rendering-state
+ * values like BOOKING_WINDOW_PASSED. Collapse onto the four-state
+ * Meridian enum: cancelled, completed, live, scheduled.
+ */
+function normalizeClassStatus(raw: string | undefined | null):
+  | "scheduled"
+  | "live"
+  | "completed"
+  | "cancelled" {
+  switch ((raw ?? "").toUpperCase()) {
+    case "CANCELED":
+    case "CANCELLED":
+      return "cancelled";
+    case "COMPLETED":
+    case "FINISHED":
+      return "completed";
+    case "LIVE":
+    case "IN_PROGRESS":
+      return "live";
+    case "SCHEDULED":
+    case "BOOKING_OPEN":
+    case "BOOKING_WINDOW_PASSED":
+    case "BOOKING_WINDOW_NOT_OPEN":
+    default:
+      return "scheduled";
+  }
+}
+
+/**
+ * Glofox emits dates in two flavors depending on endpoint:
+ *   - `/Analytics/report` returns ISO strings already (with `Z`).
+ *   - `/2.2/.../bookings` returns "YYYY-MM-DD HH:mm:ss" without a
+ *     timezone marker (UTC implicit per Glofox docs).
+ *
+ * The native `Date(...)` parser accepts the second form too, but it
+ * interprets it as **local time** — which silently shifts every
+ * timestamp by the runtime's offset (e.g. +4h in EDT). To avoid that
+ * subtle bug we always pin to UTC first, falling back to the native
+ * parser only when the input has an explicit timezone marker (Z or
+ * ±HH:MM offset).
+ */
+const GLOFOX_DATE_RE = /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2}):(\d{2})$/;
+const HAS_TZ_RE = /[Zz]$|[+-]\d{2}:?\d{2}$/;
+export function parseGlofoxDate(raw: string | null | undefined): string | null {
+  if (raw == null || raw === "") return null;
+  // Has explicit timezone — let JS parse it.
+  if (HAS_TZ_RE.test(raw)) {
+    const d = new Date(raw);
+    return Number.isNaN(d.getTime()) ? null : d.toISOString();
+  }
+  // No tz marker. Match the Glofox naive form and pin to UTC.
+  const m = raw.match(GLOFOX_DATE_RE);
+  if (!m) return null;
+  return new Date(
+    `${m[1]}-${m[2]}-${m[3]}T${m[4]}:${m[5]}:${m[6]}Z`,
+  ).toISOString();
 }
 
 export function transformTransaction(

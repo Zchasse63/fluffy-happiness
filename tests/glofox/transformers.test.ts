@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 
 import {
+  parseGlofoxDate,
   transformBooking,
   transformClassInstance,
   transformLead,
@@ -112,19 +113,22 @@ describe("transformProgram", () => {
 });
 
 describe("transformClassInstance", () => {
+  // Wire-shape fixtures captured 2026-05-08 from live `/2.0/events`.
   it("returns a row plus the program/trainer glofox ids for caller resolution", () => {
     const out = transformClassInstance(
       {
         _id: "gx-cls-1",
         program_id: "gx-pgm-1",
-        trainer_id: "gx-staff-1",
+        trainers: ["gx-staff-1"],
         branch_id: "branch",
         name: "Open Sauna",
-        starts_at: "2026-04-29T18:00:00Z",
-        ends_at: "2026-04-29T19:00:00Z",
-        capacity: 12,
-        booked_count: 7,
-        status: "scheduled",
+        // Mon 2026-04-29 18:00 UTC
+        time_start: 1777903200,
+        duration: 60,
+        size: 12,
+        booked: 7,
+        waiting: 2,
+        status: "BOOKING_OPEN",
       } as never,
       STUDIO,
       "gx-pgm-1",
@@ -134,7 +138,11 @@ describe("transformClassInstance", () => {
     expect(out.title).toBe("Open Sauna");
     expect(out.capacity).toBe(12);
     expect(out.booked_count).toBe(7);
+    expect(out.waitlist_count).toBe(2);
     expect(out.status).toBe("scheduled");
+    // 2026-04-29T18:00:00.000Z → 2026-04-29T19:00:00.000Z
+    expect(out.starts_at).toBe(new Date(1777903200 * 1000).toISOString());
+    expect(out.ends_at).toBe(new Date((1777903200 + 60 * 60) * 1000).toISOString());
     expect(out.programGlofoxId).toBe("gx-pgm-1");
     expect(out.trainerGlofoxId).toBe("gx-staff-1");
   });
@@ -144,9 +152,9 @@ describe("transformClassInstance", () => {
       {
         _id: "gx-cls-2",
         branch_id: "b",
-        starts_at: "2026-04-29T18:00:00Z",
-        ends_at: "2026-04-29T19:00:00Z",
-        capacity: 8,
+        time_start: 1777903200,
+        duration: 60,
+        size: 8,
       } as never,
       STUDIO,
       undefined,
@@ -156,27 +164,84 @@ describe("transformClassInstance", () => {
     expect(out.title).toBe("Class");
     expect(out.status).toBe("scheduled");
     expect(out.booked_count).toBe(0);
+    expect(out.waitlist_count).toBe(0);
+  });
+
+  it("collapses Glofox status enum onto the four-state Meridian enum", () => {
+    const cases: Array<[string, "scheduled" | "live" | "completed" | "cancelled"]> = [
+      ["BOOKING_OPEN", "scheduled"],
+      ["BOOKING_WINDOW_PASSED", "scheduled"],
+      ["BOOKING_WINDOW_NOT_OPEN", "scheduled"],
+      ["SCHEDULED", "scheduled"],
+      ["IN_PROGRESS", "live"],
+      ["LIVE", "live"],
+      ["COMPLETED", "completed"],
+      ["FINISHED", "completed"],
+      ["CANCELED", "cancelled"],
+      ["CANCELLED", "cancelled"],
+    ];
+    for (const [input, expected] of cases) {
+      const out = transformClassInstance(
+        {
+          _id: "gx-cls-status",
+          branch_id: "b",
+          time_start: 1777903200,
+          duration: 60,
+          size: 12,
+          status: input,
+        } as never,
+        STUDIO,
+        undefined,
+        undefined,
+      );
+      expect(out.status).toBe(expected);
+    }
+  });
+
+  it("returns null starts_at when Glofox omits time_start (template stub)", () => {
+    const out = transformClassInstance(
+      {
+        _id: "gx-cls-stub",
+        branch_id: "b",
+        size: 12,
+      } as never,
+      STUDIO,
+      undefined,
+      undefined,
+    );
+    // sync-engine.ts then drops these via the .filter(starts_at != null) step.
+    expect(out.starts_at).toBeNull();
+    expect(out.ends_at).toBeNull();
   });
 });
 
 describe("transformBooking", () => {
-  it("maps each Glofox status to the canonical Meridian status", () => {
+  // Wire-shape fixtures captured 2026-05-08 from live
+  // `/2.2/branches/{branchId}/bookings`.
+  it("maps each Glofox status (uppercase) onto the canonical Meridian status", () => {
     const cases = [
-      ["booked", "booked"],
-      ["checked_in", "checked_in"],
-      ["cancelled", "cancelled"],
-      ["no_show", "no_show"],
-      ["waitlisted", "waitlisted"],
+      ["BOOKED", "booked"],
+      ["CONFIRMED", "booked"],
+      ["CHECKED_IN", "checked_in"],
+      ["ATTENDED", "checked_in"],
+      ["CANCELED", "cancelled"], // American spelling per Glofox
+      ["CANCELLED", "cancelled"],
+      ["NO_SHOW", "no_show"],
+      ["DID_NOT_ATTEND", "no_show"],
+      ["WAITLIST", "waitlisted"],
+      ["ON_WAITLIST", "waitlisted"],
+      ["WAITING", "waitlisted"],
+      ["unknown_value", "booked"], // unknown enums fall back to booked
     ] as const;
 
     for (const [input, expected] of cases) {
       const out = transformBooking(
         {
           _id: `gx-bk-${input}`,
-          class_id: "cls",
+          event_id: "cls",
           user_id: "usr",
           status: input,
-          created_at: "2026-04-28T18:00:00Z",
+          created: "2026-04-28 18:00:00",
         } as never,
         STUDIO,
       );
@@ -184,15 +249,60 @@ describe("transformBooking", () => {
     }
   });
 
+  it("reads event_id (not class_id) for FK resolution", () => {
+    const out = transformBooking(
+      {
+        _id: "gx-bk-1",
+        event_id: "real-event-id",
+        user_id: "usr",
+        status: "BOOKED",
+        created: "2026-04-28 18:00:00",
+      } as never,
+      STUDIO,
+    );
+    expect(out.classGlofoxId).toBe("real-event-id");
+    expect(out.memberGlofoxId).toBe("usr");
+  });
+
+  it("parses Glofox 'YYYY-MM-DD HH:mm:ss' canceled_at into ISO and uses British column name", () => {
+    const out = transformBooking(
+      {
+        _id: "gx-bk-canc",
+        event_id: "cls",
+        user_id: "usr",
+        status: "CANCELED",
+        created: "2026-04-28 18:00:00",
+        canceled_at: "2026-04-29 09:30:00",
+      } as never,
+      STUDIO,
+    );
+    expect(out.row.cancelled_at).toBe("2026-04-29T09:30:00.000Z");
+  });
+
+  it("captures is_from_waiting_list when the booking was promoted from the waitlist", () => {
+    const out = transformBooking(
+      {
+        _id: "gx-bk-promo",
+        event_id: "cls",
+        user_id: "usr",
+        status: "BOOKED",
+        created: "2026-04-28 18:00:00",
+        is_from_waiting_list: true,
+      } as never,
+      STUDIO,
+    );
+    expect(out.row.is_from_waiting_list).toBe(true);
+  });
+
   it("flags classpass source explicitly", () => {
     const out = transformBooking(
       {
         _id: "gx-bk-cp",
-        class_id: "cls",
+        event_id: "cls",
         user_id: "usr",
-        status: "booked",
+        status: "BOOKED",
         source: "classpass",
-        created_at: "2026-04-28T18:00:00Z",
+        created: "2026-04-28 18:00:00",
       } as never,
       STUDIO,
     );
@@ -203,15 +313,33 @@ describe("transformBooking", () => {
     const out = transformBooking(
       {
         _id: "gx-bk-2",
-        class_id: "cls",
+        event_id: "cls",
         user_id: "usr",
-        status: "booked",
+        status: "BOOKED",
         source: "web",
-        created_at: "2026-04-28T18:00:00Z",
+        created: "2026-04-28 18:00:00",
       } as never,
       STUDIO,
     );
     expect(out.row.source).toBe("glofox");
+  });
+});
+
+describe("parseGlofoxDate", () => {
+  it("preserves valid ISO inputs", () => {
+    expect(parseGlofoxDate("2026-04-28T18:00:00Z")).toBe(
+      "2026-04-28T18:00:00.000Z",
+    );
+  });
+  it("converts Glofox 'YYYY-MM-DD HH:mm:ss' (UTC implicit) to ISO", () => {
+    expect(parseGlofoxDate("2026-04-28 18:00:00")).toBe(
+      "2026-04-28T18:00:00.000Z",
+    );
+  });
+  it("returns null for null/empty/malformed input", () => {
+    expect(parseGlofoxDate(null)).toBeNull();
+    expect(parseGlofoxDate("")).toBeNull();
+    expect(parseGlofoxDate("not-a-date")).toBeNull();
   });
 });
 

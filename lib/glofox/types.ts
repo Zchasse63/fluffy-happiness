@@ -49,27 +49,55 @@ export type GlofoxProgram = {
   is_active?: boolean;
 };
 
+// Wire format verified 2026-05-08 against live `/2.0/events`. Glofox emits
+// `time_start` as a unix-second integer (not ISO string), `size` not
+// `capacity`, `booked` not `booked_count`. There is no `ends_at` — we
+// compute it from `time_start + duration*60`. `waiting` is the realtime
+// waitlist count; status enum is uppercase Glofox-style.
 export type GlofoxClass = {
   _id: string;
   program_id?: string;
-  trainer_id?: string;
+  /** Glofox returns trainers as an array; first is the primary. */
+  trainers?: string[];
   branch_id: string;
   name?: string;
-  starts_at: string;
-  ends_at: string;
-  capacity: number;
-  booked_count?: number;
-  status?: "scheduled" | "live" | "completed" | "cancelled";
+  /** Unix seconds. */
+  time_start: number;
+  /** Minutes. */
+  duration?: number;
+  /** Capacity (Glofox calls it `size`). */
+  size: number;
+  /** Booked count. */
+  booked?: number;
+  /** Realtime waitlist count. */
+  waiting?: number;
+  /** Raw Glofox status (e.g. BOOKING_OPEN, BOOKING_WINDOW_PASSED, IN_PROGRESS, COMPLETED, CANCELED). */
+  status?: string;
+  active?: boolean;
 };
 
+// Wire format verified 2026-05-08 against live
+// `/2.2/branches/{branchId}/bookings`. Glofox emits `event_id` (not
+// `class_id`), `created` as `"YYYY-MM-DD HH:mm:ss"` (not `created_at`
+// ISO), `canceled_at` American spelling (not `cancelled_at`). Status
+// is uppercase: BOOKED, CHECKED_IN, CANCELED, NO_SHOW, WAITLIST.
 export type GlofoxBooking = {
   _id: string;
-  class_id: string;
+  /** The class instance this booking is for. */
+  event_id: string;
   user_id: string;
-  status: "booked" | "checked_in" | "cancelled" | "no_show" | "waitlisted";
+  /** Raw Glofox status — normalized via mapBookingStatus(). */
+  status: string;
   source?: string;
-  created_at: string;
-  cancelled_at?: string;
+  /** "YYYY-MM-DD HH:mm:ss" UTC. Parse via parseGlofoxDate(). */
+  created: string;
+  modified?: string;
+  /** American spelling per Glofox. May be ISO or "YYYY-MM-DD HH:mm:ss". */
+  canceled_at?: string | null;
+  is_from_waiting_list?: boolean;
+  attended?: boolean;
+  paid?: boolean;
+  payment_method?: string | null;
 };
 
 export type GlofoxTransaction = {

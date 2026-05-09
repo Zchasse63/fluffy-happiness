@@ -195,7 +195,10 @@ export async function runGlofoxSync(
   let classesWritten = 0;
   if (classes.length) {
     const programGlofoxIds = uniqueIds(classes.map((c) => c.program_id));
-    const trainerGlofoxIds = uniqueIds(classes.map((c) => c.trainer_id));
+    // Glofox returns `trainers: string[]`; we model only one trainer per
+    // class instance today (the primary). Multi-trainer support would
+    // require a class_instance_trainers join table.
+    const trainerGlofoxIds = uniqueIds(classes.map((c) => c.trainers?.[0]));
 
     const [programLookup, trainerLookup] = await Promise.all([
       programGlofoxIds.length
@@ -218,7 +221,18 @@ export async function runGlofoxSync(
 
     const classRows = classes
       .map((c) => {
-        const t = transformClassInstance(c, studioId, c.program_id, c.trainer_id);
+        const t = transformClassInstance(
+          c,
+          studioId,
+          c.program_id,
+          c.trainers?.[0],
+        );
+        // Glofox occasionally returns event records without a time_start —
+        // template stubs, drafts, recurring-rule rows. The class_instances
+        // schema requires starts_at NOT NULL, so we drop these rather
+        // than failing the entire sync. They'll be re-synced once Glofox
+        // assigns them an actual time.
+        if (!t.starts_at || !t.ends_at) return null;
         return {
           studio_id: t.studio_id,
           glofox_id: t.glofox_id,
@@ -227,6 +241,7 @@ export async function runGlofoxSync(
           ends_at: t.ends_at,
           capacity: t.capacity,
           booked_count: t.booked_count,
+          waitlist_count: t.waitlist_count,
           status: t.status,
           is_one_off: t.is_one_off,
           program_id: t.programGlofoxId
@@ -237,12 +252,7 @@ export async function runGlofoxSync(
             : null,
         };
       })
-      // Glofox occasionally returns event records without a starts_at —
-      // template stubs, drafts, recurring-rule rows. The class_instances
-      // schema requires starts_at NOT NULL, so we drop these rather
-      // than failing the entire sync. They'll be re-synced once Glofox
-      // assigns them an actual time.
-      .filter((row) => row.starts_at != null);
+      .filter((r): r is NonNullable<typeof r> => r !== null);
 
     for (let i = 0; i < classRows.length; i += CHUNK_SIZE) {
       const chunk = classRows.slice(i, i + CHUNK_SIZE);
