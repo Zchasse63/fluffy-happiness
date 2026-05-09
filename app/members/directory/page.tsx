@@ -24,6 +24,7 @@ import {
   type KpiCardItem,
 } from "@/components/primitives";
 import { StatusPill, ToneBadge } from "@/components/status-pill";
+import { loadPoPDelta } from "@/lib/data/_pop";
 import { listMembers, loadDirectoryKpis } from "@/lib/data/members";
 import { loadSegmentCounts } from "@/lib/data/segments";
 import { ENGAGEMENT_TONE, SEGMENTS } from "@/lib/fixtures";
@@ -47,10 +48,35 @@ export default async function MembersDirectoryPage({
   const params = (await searchParams) ?? {};
   const search = params.q ?? "";
 
-  const [members, kpis, segmentCounts] = await Promise.all([
+  const [
+    members,
+    kpis,
+    segmentCounts,
+    activeDelta,
+    newMonthDelta,
+    trialDelta,
+  ] = await Promise.all([
     listMembers({ limit: 50, search }),
     loadDirectoryKpis(),
     loadSegmentCounts(),
+    // Real PoP deltas — pre-2026-05-08 these were hardcoded "+0".
+    loadPoPDelta({
+      table: "members",
+      periodDays: 30,
+      aggregate: "count",
+      filter: { membership_status: "active" },
+    }),
+    loadPoPDelta({
+      table: "members",
+      periodDays: 30,
+      aggregate: "count",
+    }),
+    loadPoPDelta({
+      table: "members",
+      periodDays: 30,
+      aggregate: "count",
+      filter: { membership_status: "trialing" },
+    }),
   ]);
 
   const heroMeta = `${kpis.activeCount} active · ${kpis.newThisMonthCount} new this month · Tampa`;
@@ -69,26 +95,29 @@ export default async function MembersDirectoryPage({
     {
       label: "Active members",
       value: kpis.activeCount.toLocaleString(),
-      delta: "+0",
-      foot: "live",
+      delta: activeDelta.label,
+      foot: "vs prior 30d",
     },
     {
       label: "MRR (estimate)",
       value: formatCurrency(kpis.mrrCents),
-      delta: "+0%",
+      // MRR PoP would need a per-day MRR snapshot table; we don't
+      // have one yet. The delta is a function of net active changes —
+      // we surface the active-count delta as a directional proxy.
+      delta: activeDelta.label,
       foot: "active × plan price",
     },
     {
       label: "New this month",
       value: kpis.newThisMonthCount.toLocaleString(),
-      delta: "+0",
-      foot: "rolling 30d",
+      delta: newMonthDelta.label,
+      foot: "vs prior 30d",
     },
     {
       label: "Trials",
       value: kpis.trialCount.toLocaleString(),
-      delta: "+0",
-      foot: "in funnel",
+      delta: trialDelta.label,
+      foot: "vs prior 30d",
     },
   ];
 
