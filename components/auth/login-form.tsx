@@ -1,11 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 
 import { Icon } from "@/components/icon";
 import { createSupabaseBrowser } from "@/lib/supabase/client";
 
-type Status = "idle" | "sending" | "sent" | "error";
+type Status = "idle" | "signing" | "error";
 
 const URL_ERROR_COPY: Record<string, string> = {
   not_authorized:
@@ -20,7 +21,10 @@ export function LoginForm({
 }: {
   searchParams?: Promise<{ next?: string; error?: string }>;
 }) {
+  const router = useRouter();
   const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [next, setNext] = useState<string>("/");
   const [status, setStatus] = useState<Status>("idle");
   const [error, setError] = useState<string | null>(null);
 
@@ -28,8 +32,10 @@ export function LoginForm({
     if (!searchParams) return;
     let active = true;
     void searchParams.then((p) => {
-      if (active && p.error) {
-        setError(URL_ERROR_COPY[p.error] ?? p.error);
+      if (!active) return;
+      if (p.error) setError(URL_ERROR_COPY[p.error] ?? p.error);
+      if (p.next?.startsWith("/") && !p.next.startsWith("//")) {
+        setNext(p.next);
       }
     });
     return () => {
@@ -39,56 +45,27 @@ export function LoginForm({
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email.trim()) return;
-    setStatus("sending");
+    if (!email.trim() || !password) return;
+    setStatus("signing");
     setError(null);
     try {
       const supabase = createSupabaseBrowser();
-      const next = searchParams ? (await searchParams).next : undefined;
-      // Prefer NEXT_PUBLIC_APP_URL so a magic link requested from any
-      // host (e.g. someone accidentally on localhost while a dev server
-      // is up) still lands on the canonical deployed URL. Falls back to
-      // the current origin during local dev where APP_URL points at
-      // localhost itself.
-      const origin =
-        process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "") ||
-        window.location.origin;
-      const redirectTo = `${origin}/auth/callback${
-        next ? `?next=${encodeURIComponent(next)}` : ""
-      }`;
-      const { error: err } = await supabase.auth.signInWithOtp({
+      const { error: err } = await supabase.auth.signInWithPassword({
         email: email.trim(),
-        options: { emailRedirectTo: redirectTo },
+        password,
       });
       if (err) throw err;
-      setStatus("sent");
+      // Server components read auth from cookies, so a hard navigation
+      // ensures the next page sees the freshly-set session.
+      router.replace(next);
+      router.refresh();
     } catch (err) {
       setStatus("error");
-      setError(err instanceof Error ? err.message : "Something went wrong.");
+      setError(
+        err instanceof Error ? err.message : "Invalid email or password.",
+      );
     }
   };
-
-  if (status === "sent") {
-    return (
-      <div
-        style={{
-          padding: 18,
-          borderRadius: 12,
-          background: "var(--pos-soft)",
-          border: "1px solid var(--pos)",
-          color: "var(--pos)",
-        }}
-      >
-        <div className="row" style={{ gap: 8, marginBottom: 6, fontWeight: 600 }}>
-          <Icon name="check" size={14} /> Check your inbox
-        </div>
-        <div style={{ fontSize: 13, color: "var(--text-2)" }}>
-          We sent a magic link to <strong>{email}</strong>. The link expires in
-          5 minutes — open it from the same browser.
-        </div>
-      </div>
-    );
-  }
 
   return (
     <form onSubmit={onSubmit}>
@@ -120,20 +97,46 @@ export function LoginForm({
           outline: "none",
         }}
       />
+      <label
+        className="metric-label"
+        htmlFor="password"
+        style={{ display: "block", marginTop: 14, marginBottom: 6 }}
+      >
+        Password
+      </label>
+      <input
+        id="password"
+        type="password"
+        autoComplete="current-password"
+        required
+        value={password}
+        onChange={(e) => setPassword(e.target.value)}
+        style={{
+          width: "100%",
+          height: 42,
+          padding: "0 14px",
+          border: "1px solid var(--border)",
+          borderRadius: 10,
+          background: "var(--surface-2)",
+          fontSize: 14,
+          color: "var(--text)",
+          outline: "none",
+        }}
+      />
       <button
         type="submit"
         className="btn btn-primary hov"
-        disabled={status === "sending"}
+        disabled={status === "signing"}
         style={{
           width: "100%",
           height: 42,
           marginTop: 14,
           fontSize: 14,
           justifyContent: "center",
-          opacity: status === "sending" ? 0.7 : 1,
+          opacity: status === "signing" ? 0.7 : 1,
         }}
       >
-        {status === "sending" ? "Sending…" : "Send magic link"}{" "}
+        {status === "signing" ? "Signing in…" : "Sign in"}{" "}
         <Icon name="arrow-right" size={12} />
       </button>
       {error && (

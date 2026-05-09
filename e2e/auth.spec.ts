@@ -1,29 +1,26 @@
 import { expect, test } from "@playwright/test";
 
 /*
- * Auth — login form, magic-link path, unauthorized email handling.
+ * Auth — login form (email + password), unauthorized email handling.
  *
  * The dev server runs with TEST_AUTH_BYPASS=1 so authed routes load
  * without sign-in. The /login page itself doesn't need the bypass and
- * exercises the real magic-link form.
+ * exercises the real password sign-in form.
  */
 
 test.describe("login page", () => {
-  test("renders the magic-link form with the right copy", async ({ page }) => {
+  test("renders the sign-in form with the right copy", async ({ page }) => {
     await page.goto("/login");
     await expect(page).toHaveTitle(/Meridian · The Sauna Guys/);
     await expect(
       page.getByRole("heading", { name: "Sign in", level: 1 }),
     ).toBeVisible();
     await expect(
-      page.getByText(
-        /enter your work email — we'll send you a link to log in/i,
-      ),
+      page.getByText(/sign in with your work email and password/i),
     ).toBeVisible();
     await expect(page.getByRole("textbox", { name: "Work email" })).toBeVisible();
-    await expect(
-      page.getByRole("button", { name: "Send magic link" }),
-    ).toBeVisible();
+    await expect(page.getByLabel("Password")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Sign in" })).toBeVisible();
     await expect(
       page.getByText(/owners \+ managers only · members use the app/i),
     ).toBeVisible();

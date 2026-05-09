@@ -59,15 +59,18 @@ defense-in-depth.
 | `lib/auth.ts` | `requireProfile`, `requireRole`, `AuthError`, `authErrorResponse` |
 | `lib/data/command-center.ts` | Server-side loaders: revenue snapshot, today's schedule, focus queue |
 | `lib/data/members.ts` | Members directory query w/ fixture fallback |
+| `lib/data/people.ts`, `lib/data/segments.ts` | Unified `people` view + 13-segment counts (RPC `segment_counts`) — see migration 0019 |
 | `lib/glofox/client.ts` | REST client — verified against OpenAPI 2.2; 3-header auth; POST `/Analytics/report` for txns; 200+`success:false` quirk |
 | `lib/glofox/transformers.ts` | Glofox shape → Meridian shape (txn unwrapping, etc.) |
-| `lib/ai/claude.ts` | `generateBriefing`, `askMeridian` — prompt-cached |
+| `lib/glofox/sync-engine.ts` | Hourly Inngest cron entry point — staff/members/programs/classes/bookings/transactions/leads with FK resolution |
+| `lib/ai/claude.ts` | `generateBriefing`, `askMeridian` — prompt-cached. Sibling files: `segment-recs.ts`, `schedule-recommendations.ts` |
 | `components/primitives.tsx` | KpiStrip, InsightCard (IDA), Donut, LineChart, ChangeBadge, SectionHead, PageHero, ModuleStub |
-| `supabase/migrations/0001…0008` | 28 tables, RLS, RPCs (`book_class_atomic`), indexes, hardened functions |
+| `supabase/migrations/0001…0020` | 35 tables + `people`/`segment_assignments` views + RPCs (`book_class_atomic`, `segment_counts`, `segment_people`, `link_my_profile`, `link_members_to_plans`), RLS, indexes, hardened functions |
 | `scripts/glofox-backfill.mjs` | Phase R2 historical pull → `/tmp/meridian-backfill/*.json` |
 | `scripts/smoke.mjs` | Boots `next start`, hits 27 routes, expects no 5xx |
 | `DEFERRED.md` | Things waiting on creds or human intervention |
-| `AGENTS.md` | Next 16 warning (loaded into context via `@AGENTS.md`) |
+| `HANDOFF-NEXT-SESSION.md` | Most recent session-end snapshot — read before resuming a wave |
+| `AGENTS.md` | Same Next 16 warning duplicated for non-Claude tooling (Cursor, etc.). Not auto-loaded by Claude Code; the warning is also inline in this file. |
 
 ## Patterns & Conventions
 
@@ -98,10 +101,12 @@ defense-in-depth.
   No `cancelled`. To detect churn we synthesize: `paused` OR
   recurring-tier with no purchase in 60d. Real cancellation history
   needs a billing-event ingestion that GloFox doesn't expose.
-- **GloFox credits are NOT synced today.** `transformMember` doesn't
-  pull the per-user credit balance from GloFox's `/credits` endpoint.
-  The `stale-credits` segment + Command Center liability KPI return 0
-  until a credit-sync stage is added to `lib/glofox/sync-engine.ts`.
+- **GloFox credits are NOT synced today.** The `members.membership_credits` /
+  `members.flex_credits` columns exist (and the segments view reads them
+  via `credit_balance`), but `lib/glofox/sync-engine.ts` doesn't call
+  GloFox's `/credits` endpoint, so they stay at 0. The `stale-credits`
+  segment + Command Center liability KPI return 0 until a credit-sync
+  stage lands.
 - **Every tenant table has `studio_id`.** RLS enforces; API routes also
   `requireRole`. Both — defense in depth.
 - **Async-by-default for >1s work** — Inngest write-back queue for Glofox +
@@ -113,7 +118,7 @@ defense-in-depth.
   in `authErrorResponse` only.
 - **Comments**: explain *why* only. The code shows *what*.
 
-## Design contract (Atelier — locked per HANDOFF.md §3)
+## Design contract (Atelier — locked)
 
 - Palette: warm-paper neutrals, terracotta `#C2410C`, deep teal `#0F766E`
 - Typography: Instrument Serif (display), JetBrains Mono (eyebrows / metrics),
@@ -130,11 +135,12 @@ Don't drift from these without design review.
 
 | Phase | Status | Notes |
 |---|---|---|
-| **R0** Foundation | ✅ done | 32 tables (added 0012 corporate_accounts + 0013 facilities/waivers/products/giftcards), RLS, RPCs, indexes, single-tenant seed |
+| **R0** Foundation | ✅ done | 35 tables (0012 corporate_accounts, 0013 facilities/waivers/products/giftcards, 0016 rate_limits), RLS, RPCs, indexes, single-tenant seed |
 | **R1** API layer | ✅ done | Glofox client, transformers, sync engine extracted to `lib/glofox/sync-engine.ts`, auth, core routes, AI lib |
-| **R2** Data backfill | ✅ done | Glofox sync wires every entity type — staff + trainers, members, programs, class_instances, bookings, transactions, leads — with FK resolution. Hourly Inngest cron runs incrementally. |
+| **R2** Data backfill | ✅ done | Glofox sync wires every entity type — staff + trainers, members, programs, class_instances, bookings, transactions, leads — with FK resolution. Hourly Inngest cron runs incrementally. Cron entry points: `POST /api/glofox/sync` (sync) and `POST /api/ai/briefing` (briefing) — both accept `Authorization: Bearer $CRON_SECRET` and the proxy whitelists them so cron callers reach the handler. |
 | **R3** Feature fixes | ✅ done | All 4 critical + 9/10 high audit findings closed. SearchBar URL-driven, AI briefing live, cache layer wired (5-min KPI / 22h briefing), 12 stub pages now backed by live data, 6 new schema tables for facilities/waivers/retail/giftcards/corporate. |
-| **R3.5** Tests + infra | ✅ done | Vitest (20 unit tests on transformers + utils), Playwright E2E (24 specs, TEST_AUTH_BYPASS gated against prod), GitHub Actions CI, netlify.toml with per-route timeouts, bundle analyzer. |
+| **R3.5** Tests + infra | ✅ done | Vitest (20 unit tests on transformers + utils), Playwright E2E (24 specs, TEST_AUTH_BYPASS gated against prod), GitHub Actions CI, netlify.toml with per-route timeouts, bundle analyzer. Push-to-deploy via `.github/workflows/netlify-deploy.yml` (verified 2026-05-01). |
+| **R3.7** Segmentation | ✅ done | Migration 0019 unified leads + members into the `people` view, added `segment_assignments` (13 behavioral segments) and the `segment_counts` / `segment_people` RPCs. UI: `/members/segments` grid + drill-down `/members/segments/[id]`. AI outreach generation via `lib/ai/segment-recs.ts` (`POST /api/ai/segment`). 0020 reshapes the assignments view (one row per (person, segment_id)). |
 | **R4** Cutover | ⏳ awaits creds | Stripe/Resend/Inngest/Sentry are scaffolded; just needs real keys. See `DEFERRED.md`. |
 
 ### Outstanding (low-priority, deferred)
@@ -143,10 +149,11 @@ Don't drift from these without design review.
 - **Open product questions** in `DEFERRED.md` (multi-location, HIPAA stance, refund authority, etc.).
 - **Wave G credentials** — Inngest signing/event keys, Resend API + webhook secret, Stripe.
 
-(_Previously listed here:_ "segment N+1 → RPCs" and "plan-count N+1" — both
-were already addressed in earlier waves. `lib/data/segments.ts` uses one
-parallel batch of head-count queries plus in-memory aggregation; `lib/data/revenue.ts`
-fetches active members once and bucket-counts in-memory. Verified 2026-04-29.)
+(_Previously listed here:_ "segment N+1 → RPCs" and "plan-count N+1" —
+both addressed. `lib/data/segments.ts` calls a single `segment_counts(studio_id)`
+RPC (migration 0019) for all 13 segments + stale-credit liability in one
+round trip. `lib/data/revenue.ts` fetches active members once and
+bucket-counts plan membership in-memory. Verified 2026-05-08.)
 
 ## Development Notes
 
@@ -216,8 +223,10 @@ npx supabase gen types typescript --project-id ptgeijftzfykjbiujvty \
 - **Background tasks** — keep ≤ 2 concurrent. The previous session piled up
   8+ `Wait for…` jobs and the supervisor killed everything (exit 144,
   0-byte outputs). Prefer foreground for one-shots.
-- **AGENTS.md** is loaded via `@AGENTS.md` in this CLAUDE.md scope and
-  reiterates the Next 16 warning above — don't remove.
+- **AGENTS.md** duplicates the Next 16 warning for non-Claude tooling
+  (Cursor, Copilot, etc.) that respects `AGENTS.md`. Claude Code does
+  not auto-load it; the same warning is inline at the top of this file,
+  so don't remove either copy.
 - **`ERR_INVALID_PACKAGE_CONFIG` from `node_modules/next/dist/compiled/*/package.json`**
   on `next dev` request handling means the install is corrupted (silent
   failure mode: Next "Ready", but every request hangs forever). Fix:

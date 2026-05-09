@@ -1,8 +1,8 @@
 /*
- * Login — magic-link / OTP only. No password. Branded with the same
- * Atelier palette as the rest of Meridian. Landing here means the
- * caller wasn't authenticated; on submit we kick off Supabase Auth's
- * email OTP flow and tell the user to check their inbox.
+ * Login — email + password against Supabase Auth. Branded with the same
+ * Atelier palette as the rest of Meridian. Landing here means the caller
+ * wasn't authenticated; on submit we exchange the credentials and let
+ * the form redirect to ?next= or /.
  */
 
 import { LoginForm } from "@/components/auth/login-form";
@@ -73,8 +73,7 @@ export default function LoginPage({
           className="muted"
           style={{ marginBottom: 24, fontSize: 13.5, lineHeight: 1.6 }}
         >
-          Enter your work email — we&apos;ll send you a link to log in. No
-          passwords here.
+          Sign in with your work email and password.
         </p>
         <LoginForm searchParams={searchParams} />
         <div
