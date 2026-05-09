@@ -287,6 +287,11 @@ export async function loadDemandHeatmap(
     () => Array.from({ length: 4 }, () => [0, 0]),
   );
 
+  // 4 hour-buckets covering the full operating day. Pre-2026-05-08
+  // we only counted hours 17-20 — every morning, midday, and late-
+  // evening class was silently invisible to the optimization view.
+  // Now: AM (5-9), Mid (10-13), Eve (14-18), Late (19-23). Anything
+  // outside 5-23 still drops (closed hours).
   for (const r of rows) {
     const cap = r.capacity ?? 0;
     if (!cap) continue;
@@ -295,10 +300,10 @@ export async function loadDemandHeatmap(
     const dow = (d.getDay() + 6) % 7;
     const h = d.getHours();
     let hbucket = -1;
-    if (h === 17) hbucket = 0;
-    else if (h === 18) hbucket = 1;
-    else if (h === 19) hbucket = 2;
-    else if (h === 20) hbucket = 3;
+    if (h >= 5 && h <= 9) hbucket = 0;
+    else if (h >= 10 && h <= 13) hbucket = 1;
+    else if (h >= 14 && h <= 18) hbucket = 2;
+    else if (h >= 19 && h <= 23) hbucket = 3;
     if (hbucket < 0) continue;
     buckets[dow][hbucket][0] += fillPct;
     buckets[dow][hbucket][1] += 1;

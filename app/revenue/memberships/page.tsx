@@ -159,6 +159,19 @@ export default async function RevenueMembershipsPage() {
           alignItems: "flex-start",
         }}
       >
+        {/* Pricing simulator and Trainer promo codes were removed
+            2026-05-08 (specs/audits/qa-discovery-2026-05-08.md §B.1)
+            because both rendered hardcoded fictional numbers. They are
+            tracked as deferred features in DEFERRED.md:
+              - Pricing simulator: blocked on a Glofox write API for
+                membership plan price changes (Glofox doesn't expose
+                this today; pricing changes are made directly in the
+                Glofox dashboard).
+              - Trainer promo codes: blocked on Glofox exposing promo
+                code creation + per-code attribution. The Glofox API
+                returns promo codes only as input parameters at
+                checkout; there is no list/create endpoint.
+            Honest empty states surface the constraint to operators. */}
         <div className="card">
           <SectionHead
             right={
@@ -170,93 +183,20 @@ export default async function RevenueMembershipsPage() {
                   textTransform: "uppercase",
                 }}
               >
-                Beta
+                Deferred
               </span>
             }
           >
             Pricing simulator
           </SectionHead>
           <div
-            className="row"
-            style={{ gap: 14, alignItems: "flex-end", marginBottom: 18 }}
+            className="muted"
+            style={{ fontSize: 13, lineHeight: 1.7, padding: "8px 0 4px" }}
           >
-            <div style={{ flex: 1 }}>
-              <div className="metric-label">Plan</div>
-              <div
-                className="row"
-                style={{
-                  height: 38,
-                  border: "1px solid var(--border)",
-                  borderRadius: 8,
-                  padding: "0 12px",
-                  background: "var(--surface)",
-                  fontSize: 13,
-                  justifyContent: "space-between",
-                }}
-              >
-                <span>Monthly Unlimited</span>
-                <Icon name="chev-down" size={12} />
-              </div>
-            </div>
-            <div style={{ width: 130 }}>
-              <div className="metric-label">Current</div>
-              <div
-                className="big"
-                style={{ fontSize: 28, lineHeight: 1, marginTop: 4 }}
-              >
-                $225
-              </div>
-            </div>
-            <div style={{ width: 130 }}>
-              <div className="metric-label">Proposed</div>
-              <div
-                className="big"
-                style={{
-                  fontSize: 28,
-                  lineHeight: 1,
-                  marginTop: 4,
-                  color: "var(--accent)",
-                }}
-              >
-                $245
-              </div>
-            </div>
-          </div>
-          <div
-            style={{
-              padding: 14,
-              background: "var(--surface-2)",
-              border: "1px solid var(--border)",
-              borderRadius: 12,
-              fontSize: 12.5,
-              lineHeight: 1.7,
-            }}
-          >
-            <div style={{ fontWeight: 600, marginBottom: 6 }}>
-              Impact preview · next billing cycle
-            </div>
-            <div className="muted">
-              42 active members affected · MRR change{" "}
-              <strong style={{ color: "var(--pos)" }}>+$840/mo</strong> · churn
-              risk 2–4 members based on Tampa-market elasticity. Break-even at
-              2 cancellations.
-            </div>
-            <div className="row" style={{ gap: 8, marginTop: 12 }}>
-              <button
-                type="button"
-                className="btn btn-primary hov"
-                style={{ height: 30, fontSize: 12.5 }}
-              >
-                Apply change
-              </button>
-              <button
-                type="button"
-                className="btn btn-ghost hov"
-                style={{ height: 30, fontSize: 12.5 }}
-              >
-                Run A/B test
-              </button>
-            </div>
+            Plan price changes are made in the Glofox dashboard — Glofox
+            doesn't expose plan-pricing writes via API. Will be wired
+            here once that surface lands. Until then, edit the plan in
+            Glofox and the new price flows through on the next sync.
           </div>
         </div>
 
@@ -271,49 +211,20 @@ export default async function RevenueMembershipsPage() {
                   textTransform: "uppercase",
                 }}
               >
-                Last 30d · uses · attributed revenue
+                Deferred
               </span>
             }
           >
             Trainer promo codes
           </SectionHead>
-          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            {[
-              { code: "WHITNEY15", trainer: "Whitney Abrams", uses: 14, rev: 3150 },
-              { code: "TRENT10", trainer: "Trent Lott", uses: 9, rev: 1845 },
-              { code: "BEN10", trainer: "Ben Kniesly", uses: 6, rev: 990 },
-              { code: "LAUNCH25", trainer: "House", uses: 22, rev: 5460 },
-            ].map((p) => (
-              <div
-                key={p.code}
-                className="row"
-                style={{
-                  justifyContent: "space-between",
-                  padding: "10px 12px",
-                  borderRadius: 10,
-                  background: "var(--surface-2)",
-                  border: "1px solid var(--border)",
-                  fontSize: 13,
-                }}
-              >
-                <div>
-                  <div className="mono" style={{ fontWeight: 600 }}>
-                    {p.code}
-                  </div>
-                  <div className="muted" style={{ fontSize: 11.5 }}>
-                    {p.trainer}
-                  </div>
-                </div>
-                <div style={{ textAlign: "right" }}>
-                  <div className="mono" style={{ fontWeight: 600 }}>
-                    {formatCurrency(p.rev * 100)}
-                  </div>
-                  <div className="muted" style={{ fontSize: 11.5 }}>
-                    {p.uses} uses
-                  </div>
-                </div>
-              </div>
-            ))}
+          <div
+            className="muted"
+            style={{ fontSize: 13, lineHeight: 1.7, padding: "8px 0 4px" }}
+          >
+            Glofox doesn't expose promo-code creation or per-code
+            attribution via API. Codes live in the Glofox dashboard and
+            uses are reported there. We'll surface them here once that
+            data is reachable through a future endpoint.
           </div>
         </div>
       </div>

@@ -153,16 +153,45 @@ export default async function CommandCenterPage() {
       <PageHero
         meta={`${date} · Operational briefing`}
         title={greeting}
-        subtitle={
-          <>
-            <strong>3 things</strong> need attention today. Revenue is pacing{" "}
-            <strong>+12% vs last Tuesday</strong>, but{" "}
-            <span className="serif" style={{ fontStyle: "italic" }}>
-              Whitney&apos;s 7pm Guided
-            </span>{" "}
-            is at 2/10 — the only slot below threshold.
-          </>
-        }
+        subtitle={(() => {
+          const focusCount = liveFocus.length;
+          const todayCount = liveToday.length;
+          // Honest, dynamic subtitle. Pre-2026-05-08 this hardcoded
+          // "Whitney's 7pm Guided is at 2/10" / "+12% vs last Tuesday"
+          // — fictional figures rendered on every load
+          // (specs/audits/qa-discovery-2026-05-08.md §B.2).
+          if (focusCount === 0 && todayCount === 0) {
+            return (
+              <>
+                Quiet day on the schedule. Nothing in the focus queue
+                — a good window to clear admin tasks.
+              </>
+            );
+          }
+          return (
+            <>
+              {focusCount > 0 ? (
+                <>
+                  <strong>
+                    {focusCount} item{focusCount === 1 ? "" : "s"}
+                  </strong>{" "}
+                  need{focusCount === 1 ? "s" : ""} attention.{" "}
+                </>
+              ) : null}
+              {todayCount > 0 ? (
+                <>
+                  <strong>
+                    {todayCount} class
+                    {todayCount === 1 ? "" : "es"}
+                  </strong>{" "}
+                  on today&apos;s schedule.
+                </>
+              ) : (
+                <>No classes on today&apos;s schedule.</>
+              )}
+            </>
+          );
+        })()}
         actions={
           <>
             <button type="button" className="btn btn-ghost hov">
@@ -187,7 +216,10 @@ export default async function CommandCenterPage() {
                 textTransform: "uppercase",
               }}
             >
-              3 of 3 · next at 6 AM tomorrow
+              {liveInsights.length} of {liveInsights.length}
+              {process.env.INNGEST_SIGNING_KEY
+                ? " · next briefing 6 AM tomorrow"
+                : " · cron not wired"}
             </span>
           }
         >

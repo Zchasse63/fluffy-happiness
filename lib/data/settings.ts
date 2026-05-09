@@ -112,8 +112,16 @@ export async function loadSettings(): Promise<SettingsView> {
     reminder: typeof map.get("reminder_text") === "string"
       ? String(map.get("reminder_text"))
       : "2 hours before · Email",
-    dailyBriefing: "6:00 AM ET to owners + managers",
-    failedPaymentAlert: "Real-time · Email",
+    // Mirror the integrations panel's pattern: read env directly so we
+    // tell the operator the truth about which notifications will fire.
+    // Pre-2026-05-08 these were hardcoded affirmative strings even when
+    // the underlying integration wasn't configured.
+    dailyBriefing: process.env.INNGEST_SIGNING_KEY
+      ? "6:00 AM ET to owners + managers"
+      : "Disabled — Inngest cron not configured",
+    failedPaymentAlert: process.env.RESEND_API_KEY
+      ? "Real-time · Email"
+      : "Disabled — Resend not configured",
   };
 
   const integrations: SettingsView["integrations"] = [

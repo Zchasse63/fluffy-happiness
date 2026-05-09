@@ -6,6 +6,14 @@ publish = ".next"
 NODE_VERSION = "22"
 NEXT_TELEMETRY_DISABLED = "1"
 
+# Netlify Scheduled Function that triggers the Glofox sync hourly.
+# Replaces the never-activated Inngest cron (lib/inngest/sync.ts).
+# Requires CRON_SECRET in the production env. The function lives at
+# netlify/functions/sync-glofox.mts and POSTs to /api/glofox/sync
+# with Bearer auth.
+[functions."sync-glofox"]
+node_bundler = "esbuild"
+
 # Netlify Pro caps function timeout at 26s by default; the Glofox sync
 # route can run longer than that during a full backfill. Bump it.
 [functions."api/glofox/sync"]

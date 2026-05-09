@@ -1,91 +1,50 @@
 /*
- * Analytics — KPI dashboard + AI insights feed + cohort retention preview.
- * The pricing simulator and trainer performance breakdowns are linked
- * but live in the Revenue / Operations modules.
- *
- * Top-of-page KPIs come from `loadDirectoryKpis` + `loadRevenueOverview`.
- * Cohort retention chart + IDA insights remain authored fixtures pending
- * the real cohort + insight pipelines.
+ * Analytics — KPI dashboard + cohort retention + member-health
+ * breakdown. Pre-2026-05-08 the page shipped 12 hardcoded retention
+ * percentages, 3 fictional IDA cards, and a fake member-health donut.
+ * Replaced with live queries from `lib/data/analytics.ts`. The IDA
+ * "Insights" feed is gated on real ai_insights table data; in live
+ * mode with an empty table it renders an empty state instead of
+ * inventing trainer names.
  */
 
 export const dynamic = "force-dynamic";
 
-import Link from "next/link";
-
 import { Icon } from "@/components/icon";
 import {
   Donut,
-  InsightCard,
   KpiCardStrip,
   LineChart,
   PageHero,
   SectionHead,
-  type Insight,
   type KpiCardItem,
 } from "@/components/primitives";
+import {
+  loadCohortRetention,
+  loadEngagementHealthBreakdown,
+} from "@/lib/data/analytics";
 import { loadDirectoryKpis } from "@/lib/data/members";
 import { loadRevenueOverview } from "@/lib/data/revenue";
 import { formatCurrency } from "@/lib/utils";
 
-const COHORT_RETENTION = [
-  100, 92, 85, 78, 73, 69, 65, 62, 59, 57, 55, 54,
-];
-
-const INSIGHTS: Insight[] = [
-  {
-    rank: "P1",
-    tone: "info",
-    kicker: "Pattern · 30 days",
-    headline: "Weekday mornings outperform every other slot.",
-    data: [
-      ["Mon-Fri 6 AM avg", "92%"],
-      ["Evening avg", "71%"],
-      ["Cohort lift", "+18 pts"],
-    ],
-    body:
-      "Morning regulars book a week ahead, attend at 96% rate, and have the highest LTV across all cohorts. Two more morning slots could absorb existing waitlist demand.",
-    action: "Add morning slot",
-    altAction: "Show data",
-    href: "/schedule/optimization",
-  },
-  {
-    rank: "P2",
-    tone: "warn",
-    kicker: "Anomaly",
-    headline: "ClassPass conversion is trending down 3 weeks running.",
-    data: [
-      ["Trial → Member", "8%"],
-      ["Prior 90d avg", "14%"],
-      ["At-risk MRR", "$1,800"],
-    ],
-    body:
-      "Q1 was 14% conversion. Last 3 weeks: 11%, 9%, 8%. Hypothesis: the new ClassPass member tier devalues your premium positioning. Worth a price-sim run.",
-    action: "Run pricing sim",
-    altAction: "Open ClassPass settings",
-    href: "/revenue/memberships",
-  },
-  {
-    rank: "P3",
-    tone: "pos",
-    kicker: "Recommendation",
-    headline: "Whitney's referrals close at 91%.",
-    data: [
-      ["Referral → trial", "100%"],
-      ["Trial → member", "91%"],
-      ["LTV uplift", "+38%"],
-    ],
-    body:
-      "Whitney's referral cohort behaves like power users from day one. Worth doubling down — increase her promo split or seed a referral campaign.",
-    action: "Configure referral",
-    altAction: "Show data",
-    href: "/marketing/campaigns",
-  },
-];
+// Color map for the engagement-health donut (Atelier palette per
+// HANDOFF.md §3 — locked).
+const HEALTH_COLORS = [
+  ["Power", "var(--accent-deep)"],
+  ["Active", "var(--moss)"],
+  ["Engaged", "var(--teal)"],
+  ["Cooling", "var(--warn)"],
+  ["At risk", "var(--neg)"],
+  ["New", "var(--cobalt)"],
+  ["Lapsed", "var(--text-3)"],
+] as const;
 
 export default async function AnalyticsPage() {
-  const [kpis, revenue] = await Promise.all([
+  const [kpis, revenue, retention, health] = await Promise.all([
     loadDirectoryKpis(),
     loadRevenueOverview(30),
+    loadCohortRetention(12),
+    loadEngagementHealthBreakdown(),
   ]);
   const arpmCents = kpis.activeCount
     ? Math.round(kpis.mrrCents / kpis.activeCount)
@@ -174,20 +133,22 @@ export default async function AnalyticsPage() {
           </SectionHead>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 200px", gap: 24, alignItems: "center" }}>
             <LineChart
-              data={COHORT_RETENTION}
+              data={retention.map((p) => p.retention)}
               width={520}
               height={180}
               color="var(--teal)"
               fill
             />
             <div>
-              <div className="metric-label">Month 12 retention</div>
+              <div className="metric-label">
+                Month {retention.length - 1} retention
+              </div>
               <div className="big" style={{ fontSize: 36, marginBottom: 6 }}>
-                {COHORT_RETENTION[COHORT_RETENTION.length - 1]}%
+                {retention[retention.length - 1]?.retention ?? 0}%
               </div>
               <div className="muted" style={{ fontSize: 12, lineHeight: 1.5 }}>
-                Industry benchmark for boutique studios is 38–48%. Your
-                12-month retention is in the top quartile.
+                Cohort retention by month since signup. Each point is the
+                share of that cohort still booking at month N.
               </div>
             </div>
           </div>
@@ -196,18 +157,29 @@ export default async function AnalyticsPage() {
         <div className="card">
           <SectionHead>Member health · 30d</SectionHead>
           <div className="row" style={{ gap: 24, alignItems: "flex-start" }}>
-            <Donut value={62} color="var(--pos)" size={120} label="Active" />
+            {(() => {
+              const total = Object.values(health).reduce((s, n) => s + n, 0);
+              const active = total > 0
+                ? Math.round(
+                    ((health.Power +
+                      health.Active +
+                      health.Engaged) /
+                      total) * 100,
+                  )
+                : 0;
+              return (
+                <Donut
+                  value={active}
+                  color="var(--pos)"
+                  size={120}
+                  label="Active"
+                />
+              );
+            })()}
             <div style={{ flex: 1 }}>
-              {[
-                ["Power", 42, "var(--accent-deep)"],
-                ["Active", 138, "var(--moss)"],
-                ["Engaged", 48, "var(--teal)"],
-                ["Cooling", 31, "var(--warn)"],
-                ["At risk", 18, "var(--neg)"],
-                ["New", 14, "var(--cobalt)"],
-              ].map(([l, v, c]) => (
+              {HEALTH_COLORS.map(([label, color]) => (
                 <div
-                  key={l as string}
+                  key={label}
                   className="row"
                   style={{
                     justifyContent: "space-between",
@@ -222,13 +194,13 @@ export default async function AnalyticsPage() {
                         width: 8,
                         height: 8,
                         borderRadius: 2,
-                        background: c as string,
+                        background: color,
                       }}
                     />
-                    <span>{l as string}</span>
+                    <span>{label}</span>
                   </div>
                   <span className="mono" style={{ fontWeight: 600 }}>
-                    {v as number}
+                    {health[label]}
                   </span>
                 </div>
               ))}
@@ -237,30 +209,34 @@ export default async function AnalyticsPage() {
         </div>
       </div>
 
+      {/* Insights feed: pre-2026-05-08 this rendered 3 hardcoded IDA
+          cards (incl. "Whitney's referrals close at 91%"). Removed
+          until ai_insights is populated by the daily Inngest job.
+          When that lands, restore via loadAiInsights() returning
+          rows from public.ai_insights. */}
       <div>
-        <SectionHead
-          right={
-            <Link
-              href="/marketing/leads"
-              className="btn btn-link hov"
-              style={{ fontSize: 12 }}
-            >
-              Show data <Icon name="arrow-right" size={11} />
-            </Link>
-          }
-        >
-          Insights · last 7 days
-        </SectionHead>
+        <SectionHead>Insights · last 7 days</SectionHead>
         <div
+          className="card"
           style={{
+            padding: 32,
             display: "grid",
-            gridTemplateColumns: "repeat(3, 1fr)",
-            gap: 14,
+            placeItems: "center",
+            textAlign: "center",
           }}
         >
-          {INSIGHTS.map((i) => (
-            <InsightCard key={i.kicker} insight={i} />
-          ))}
+          <div>
+            <div className="metric-label" style={{ marginBottom: 6 }}>
+              <Icon name="sparkle" size={11} /> No insights yet
+            </div>
+            <div
+              className="muted"
+              style={{ fontSize: 13, maxWidth: 480, marginInline: "auto" }}
+            >
+              The daily AI briefing populates this feed. It runs once
+              the Inngest cron is wired (see DEFERRED.md).
+            </div>
+          </div>
         </div>
       </div>
     </>

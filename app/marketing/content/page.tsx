@@ -11,10 +11,15 @@ export const dynamic = "force-dynamic";
 
 import { Icon, type IconName } from "@/components/icon";
 import { PageHero, SectionHead } from "@/components/primitives";
+import { inBypassMode } from "@/lib/data/_log";
 import { loadContentPosts, type ContentPost } from "@/lib/data/content";
 
 type FixturePost = ContentPost & { icon: IconName };
 
+// Pre-2026-05-08 these fictional posts (incl. "Tuesday night Open
+// Sauna" and "Why we fired the cold plunge") leaked into live mode
+// when content_posts was empty. Now gated behind inBypassMode() like
+// every other fixture in the data layer.
 const FIXTURE_POSTS: FixturePost[] = [
   {
     id: "p1",
@@ -75,7 +80,9 @@ export default async function ContentPage() {
   const live = await loadContentPosts();
   const POSTS: Array<ContentPost & { icon: IconName }> = live.length
     ? live.map((p) => ({ ...p, icon: iconForChannel(p.channel) }))
-    : FIXTURE_POSTS;
+    : inBypassMode()
+      ? FIXTURE_POSTS
+      : [];
   return (
     <>
       <PageHero
@@ -103,6 +110,29 @@ export default async function ContentPage() {
         }}
       >
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          {POSTS.length === 0 && (
+            <div
+              className="card"
+              style={{ padding: 32, textAlign: "center" }}
+            >
+              <div
+                className="metric-label"
+                style={{ marginBottom: 6 }}
+              >
+                <Icon name="edit" size={11} /> No posts yet
+              </div>
+              <div
+                className="muted"
+                style={{ fontSize: 13, maxWidth: 420, marginInline: "auto" }}
+              >
+                Author your first post via{" "}
+                <strong>New post</strong> in the header. Posts saved here
+                aren&apos;t auto-published anywhere — schedule them in
+                Instagram, Threads, or your blog as usual; this is the
+                operator-side log + analytics view.
+              </div>
+            </div>
+          )}
           {POSTS.map((p) => (
             <div key={p.id} className="card" style={{ padding: 18 }}>
               <div

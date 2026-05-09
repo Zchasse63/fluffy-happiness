@@ -162,15 +162,20 @@ export async function loadDunning(): Promise<DunningRecord[]> {
   const rows = data ?? [];
   if (!rows.length) return fixtureFallback(DUNNING, []);
 
-  return rows.map((r, i) => ({
+  return rows.map((r) => ({
     id: r.id,
     member: r.members?.profiles?.full_name ?? "Member",
     plan: r.description ?? "—",
     amountCents: r.amount_cents ?? 0,
     reason: r.description ?? "Payment failed",
-    attempts: 1,
-    nextRetry:
-      i === 0 ? "Tomorrow 8 AM" : i === 1 ? "Apr 30 8 AM" : "Manual review",
+    // Pre-2026-05-08 the loader synthesized `attempts: 1` and a fake
+    // nextRetry date by row index ("Tomorrow 8 AM" / "Apr 30 8 AM" /
+    // "Manual review"). No Stripe retry schedule is consulted; we
+    // don't have a `failed_payments.retry_at` column. Until the
+    // Stripe webhook lands and writes those fields (see DEFERRED.md),
+    // surface honest "—" placeholders. attempts=0 means "unknown".
+    attempts: 0,
+    nextRetry: "—",
     seed: 0,
   }));
 }

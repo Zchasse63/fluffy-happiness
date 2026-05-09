@@ -17,10 +17,18 @@ import {
   PageHero,
   SectionHead,
 } from "@/components/primitives";
+import { loadPoPDelta } from "@/lib/data/_pop";
 import { loadMarketingOverview } from "@/lib/data/marketing-overview";
 
 export default async function MarketingOverviewPage() {
-  const overview = await loadMarketingOverview();
+  // Pre-2026-05-08 the four KPI deltas were hardcoded `+18`, `+4.2 pts`,
+  // `+1.8 pts`, `+3` — fictional period-over-period figures. Now wired
+  // through loadPoPDelta against real campaign + lead data.
+  const [overview, sentDelta, convertedDelta] = await Promise.all([
+    loadMarketingOverview(),
+    loadPoPDelta({ table: "campaigns", periodDays: 30, aggregate: "count", dateColumn: "sent_at" }),
+    loadPoPDelta({ table: "leads", periodDays: 30, aggregate: "count", filter: { status: "converted" } }),
+  ]);
   const { campaigns, leads, leadsByStatus, automations, totals } = overview;
   const totalSent = totals.sent;
   const totalConverted = totals.converted;
@@ -64,10 +72,14 @@ export default async function MarketingOverviewPage() {
           }}
         >
           {[
-            { label: "Sent · 30d", value: String(totalSent), delta: "+18", foot: "rolling" },
-            { label: "Open rate", value: `${openRate}%`, delta: "+4.2 pts", foot: "vs prior 30d" },
-            { label: "Click rate", value: `${clickRate}%`, delta: "+1.8 pts", foot: "vs prior 30d" },
-            { label: "Conversions", value: String(totalConverted), delta: "+3", foot: "attributed signups" },
+            // Sent / converted come from loadPoPDelta (real data).
+            // Open rate / click rate would need historical campaign
+            // snapshots; we don't track those today, so render "—"
+            // until campaign-history snapshotting lands.
+            { label: "Sent · 30d", value: String(totalSent), delta: sentDelta.label, foot: "vs prior 30d" },
+            { label: "Open rate", value: `${openRate}%`, delta: "—", foot: "no historical baseline" },
+            { label: "Click rate", value: `${clickRate}%`, delta: "—", foot: "no historical baseline" },
+            { label: "Conversions", value: String(totalConverted), delta: convertedDelta.label, foot: "vs prior 30d" },
           ].map((k, i) => (
             <div
               key={k.label}

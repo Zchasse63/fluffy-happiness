@@ -26,7 +26,11 @@ import { loadDemandHeatmap } from "@/lib/data/schedule";
 import { DEMAND_HEATMAP, SCHED_DAYS } from "@/lib/fixtures";
 import { createSupabaseServer } from "@/lib/supabase/server";
 
-const SLOT_LABELS = ["5 PM", "6 PM", "7 PM", "8 PM"];
+// 4 buckets covering the operating day (matches loadDemandHeatmap
+// in lib/data/schedule.ts). Pre-2026-05-08 these were hour-specific
+// 5/6/7/8 PM — but the loader only counted those hours, so morning
+// + midday classes were invisible. Now ranges.
+const SLOT_LABELS = ["AM", "Mid", "Eve", "Late"];
 
 const RAMP = [
   "var(--seq-0)",

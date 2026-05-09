@@ -320,6 +320,7 @@ export type Database = {
           guest_email: string | null
           guest_name: string | null
           id: string
+          is_from_waiting_list: boolean
           member_id: string | null
           source: string
           status: string
@@ -339,6 +340,7 @@ export type Database = {
           guest_email?: string | null
           guest_name?: string | null
           id?: string
+          is_from_waiting_list?: boolean
           member_id?: string | null
           source?: string
           status?: string
@@ -358,6 +360,7 @@ export type Database = {
           guest_email?: string | null
           guest_name?: string | null
           id?: string
+          is_from_waiting_list?: boolean
           member_id?: string | null
           source?: string
           status?: string

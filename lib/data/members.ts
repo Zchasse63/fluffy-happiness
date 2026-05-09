@@ -47,7 +47,7 @@ const DAY_MS = 24 * 60 * 60 * 1000;
  * New        trialing, OR joined < 30d ago
  * Lapsed     cancelled
  */
-function inferEngagement(
+export function inferEngagement(
   row: MemberRow,
   recentCheckins: number,
   priorCheckins: number,
@@ -231,6 +231,117 @@ async function computeDirectoryKpis(): Promise<DirectoryKpis> {
     mrrCents,
     trialCount: trialCount ?? 0,
   };
+}
+
+/* ─── Single-member loader for /members/[id] ─────────────────────── */
+
+/**
+ * Load a single member by Meridian uuid, fully populated for the
+ * Profile page: real engagement (via inferEngagement), real lastVisit
+ * (latest checked_in booking), real joined (members.created_at), real
+ * ltv (sum of completed transactions). Pre-2026-05-08 the page-level
+ * loader hardcoded engagement="Active" / ltv=0 / lastVisit="—" — fixed
+ * here so every profile reflects the underlying data.
+ *
+ * Returns null when the member isn't found. The page renders notFound()
+ * in live mode; bypass mode uses the fixture fallback at the page level
+ * for stable e2e personas.
+ */
+export async function loadMemberById(id: string): Promise<Member | null> {
+  const supabase = await createSupabaseServer();
+  const { data: row, error } = await supabase
+    .from("members")
+    .select(
+      "id, membership_status, membership_tier, plan_code, plan_price_cents, membership_credits, flex_credits, wallet_balance_cents, strike_count, glofox_id, created_at, profiles!inner(full_name, email, phone)",
+    )
+    .eq("studio_id", STUDIO_ID)
+    .eq("id", id)
+    .maybeSingle()
+    .returns<MemberRow>();
+  logQueryError("members.byId", error);
+  if (!row) return null;
+
+  // Parallel-fetch: 28-day check-in window + LTV sum + last check-in.
+  const recentSince = new Date(Date.now() - 14 * DAY_MS).toISOString();
+  const priorSince = new Date(Date.now() - 28 * DAY_MS).toISOString();
+  const [
+    { data: checkIns },
+    { data: latestCheckIn },
+    { data: txnRows },
+  ] = await Promise.all([
+    supabase
+      .from("bookings")
+      .select("created_at")
+      .eq("studio_id", STUDIO_ID)
+      .eq("member_id", id)
+      .eq("status", "checked_in")
+      .gte("created_at", priorSince),
+    supabase
+      .from("bookings")
+      .select("created_at, class_instance_id, class_instances(starts_at)")
+      .eq("studio_id", STUDIO_ID)
+      .eq("member_id", id)
+      .eq("status", "checked_in")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+    supabase
+      .from("transactions")
+      .select("amount_cents, status")
+      .eq("studio_id", STUDIO_ID)
+      .eq("member_id", id)
+      .eq("status", "completed"),
+  ]);
+
+  let recentCount = 0;
+  let priorCount = 0;
+  for (const r of checkIns ?? []) {
+    if (!r.created_at) continue;
+    if (r.created_at >= recentSince) recentCount++;
+    else priorCount++;
+  }
+
+  const ltvCents = (txnRows ?? []).reduce(
+    (sum, t) => sum + (t.amount_cents ?? 0),
+    0,
+  );
+
+  return {
+    id: row.id,
+    name: row.profiles?.full_name ?? "Member",
+    email: row.profiles?.email ?? "",
+    phone: row.profiles?.phone ?? "",
+    tier: (row.membership_tier as Member["tier"]) ?? "Monthly Unlimited",
+    status: (row.membership_status as Member["status"]) ?? "active",
+    engagement: inferEngagement(row, recentCount, priorCount),
+    credits: row.membership_credits + row.flex_credits,
+    walletCents: row.wallet_balance_cents,
+    ltv: Math.round(ltvCents / 100),
+    lastVisit: formatLastVisit(
+      latestCheckIn?.class_instances?.starts_at ?? latestCheckIn?.created_at ?? null,
+    ),
+    joined: row.created_at
+      ? new Date(row.created_at).toLocaleDateString("en-US", {
+          month: "short",
+          day: "numeric",
+          year: "numeric",
+        })
+      : "—",
+    seed: 0,
+    strikes: row.strike_count,
+  };
+}
+
+function formatLastVisit(iso: string | null): string {
+  if (!iso) return "never";
+  const d = new Date(iso);
+  const ms = Date.now() - d.getTime();
+  const days = Math.floor(ms / (24 * 60 * 60 * 1000));
+  if (days <= 0) return "today";
+  if (days === 1) return "yesterday";
+  if (days < 7) return `${days} days ago`;
+  if (days < 30) return `${Math.floor(days / 7)} weeks ago`;
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
 /* ─── Per-member profile loaders (Bookings / Payments / Activity tabs) ── */
