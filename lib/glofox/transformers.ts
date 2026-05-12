@@ -9,6 +9,7 @@
 import type {
   GlofoxBooking,
   GlofoxClass,
+  GlofoxCredit,
   GlofoxLead,
   GlofoxMember,
   GlofoxProgram,
@@ -319,6 +320,34 @@ function mapTransactionType(t: string | undefined): string {
     default:
       return "walk_in";
   }
+}
+
+/**
+ * Glofox credit pack → Meridian credit_packs row. Each pack carries
+ * its own remaining-count (`available`); a member can hold multiple
+ * active packs simultaneously. The caller resolves member_id from
+ * the user_id glofox_id.
+ *
+ * `purchased_at` falls back across `created → start_date → now()`
+ * since older packs may have one but not the others.
+ */
+export function transformCredit(c: GlofoxCredit, studioId: string) {
+  const purchasedMs =
+    (c.created ?? c.start_date ?? Math.floor(Date.now() / 1000)) * 1000;
+  return {
+    row: {
+      studio_id: studioId,
+      glofox_id: c._id,
+      pack_type: c.membership_name ?? "Class Pack",
+      credits_total: c.num_sessions ?? c.available ?? 0,
+      credits_remaining: c.available ?? 0,
+      expires_at: null as string | null,
+      purchased_at: new Date(purchasedMs).toISOString(),
+    },
+    memberGlofoxId: c.user_id,
+    isActive: c.active === true,
+    membershipName: c.membership_name,
+  };
 }
 
 export function transformLead(l: GlofoxLead, studioId: string) {

@@ -317,8 +317,15 @@ export async function loadMemberById(id: string): Promise<Member | null> {
     credits: row.membership_credits + row.flex_credits,
     walletCents: row.wallet_balance_cents,
     ltv: Math.round(ltvCents / 100),
+    // `class_instances.starts_at` is when the class actually
+    // happened — the truth. Pre-2026-05-12 this used to fall back to
+    // `booking.created_at` (when the booking was made), which is a
+    // different number — a member who booked Sept 10 and attended
+    // Sept 12 would render "last visit Sept 10" even though it was
+    // a booking action, not an attendance. Now: if the class join is
+    // missing, show "—" rather than the booking date.
     lastVisit: formatLastVisit(
-      latestCheckIn?.class_instances?.starts_at ?? latestCheckIn?.created_at ?? null,
+      latestCheckIn?.class_instances?.starts_at ?? null,
     ),
     joined: row.created_at
       ? new Date(row.created_at).toLocaleDateString("en-US", {
@@ -333,15 +340,22 @@ export async function loadMemberById(id: string): Promise<Member | null> {
 }
 
 function formatLastVisit(iso: string | null): string {
-  if (!iso) return "never";
+  if (!iso) return "—";
   const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "—";
   const ms = Date.now() - d.getTime();
   const days = Math.floor(ms / (24 * 60 * 60 * 1000));
   if (days <= 0) return "today";
   if (days === 1) return "yesterday";
   if (days < 7) return `${days} days ago`;
   if (days < 30) return `${Math.floor(days / 7)} weeks ago`;
-  return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  // For dates > 30 days old, include the year so an operator can
+  // distinguish "Sep 12, 2025" from "Sep 12, 2026".
+  return d.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
 }
 
 /* ─── Per-member profile loaders (Bookings / Payments / Activity tabs) ── */

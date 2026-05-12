@@ -125,6 +125,7 @@ describe("runGlofoxSync — empty inputs", () => {
       bookings: 0,
       transactions: 0,
       leads: 0,
+      credits: 0,
     });
     expect(events[0]?.stage).toBe("start");
     expect(events[events.length - 1]?.stage).toBe("done");

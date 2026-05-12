@@ -310,21 +310,16 @@ export class GlofoxClient {
     }).then((r) => r.data ?? []);
   }
 
-  /** Per-member credit packs. */
+  /**
+   * Per-member credit packs. Wire format verified 2026-05-12 against
+   * live `/2.0/credits?user_id=…`. Returns one row per active or
+   * historical pack the user owns; `available` is the realtime
+   * remaining count (use this, not `num_sessions`, for current
+   * balance).
+   */
   credits(userId: string) {
     return this.request<{
-      data?: Array<{
-        _id: string;
-        branch_id: string;
-        user_id: string;
-        model: string;
-        num_sessions: number;
-        active: boolean;
-        start_date?: string;
-        end_date?: string;
-        membership_id?: string;
-        membership_name?: string;
-      }>;
+      data?: import("./types").GlofoxCredit[];
     }>("GET", `/2.0/credits`, { params: { user_id: userId } }).then(
       (r) => r.data ?? [],
     );
