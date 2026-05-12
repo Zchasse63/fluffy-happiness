@@ -17,6 +17,7 @@ import {
   GlofoxClient,
   transformBooking,
   transformClassInstance,
+  transformCredit,
   transformLead,
   transformMember,
   transformProgram,
@@ -34,6 +35,7 @@ export type SyncProgress =
   | { stage: "bookings"; count: number }
   | { stage: "transactions"; count: number }
   | { stage: "leads"; count: number }
+  | { stage: "credits"; count: number }
   | { stage: "done"; at: string }
   | { stage: "error"; message: string };
 
@@ -45,6 +47,7 @@ export type SyncCounts = {
   bookings: number;
   transactions: number;
   leads: number;
+  credits: number;
 };
 
 export type RunGlofoxSyncOptions = {
@@ -309,9 +312,15 @@ export async function runGlofoxSync(
   }
 
   // 6. Transactions
-  const oneYearAgo = nowSec - 365 * 24 * 60 * 60;
+  // Pull a wide window so LTV totals are complete. Pre-2026-05-12 we
+  // capped at 365 days, which dropped any purchase older than a year
+  // and undercounted LTV for long-tenure members. Bump to ~10 years
+  // (effectively "all history") — the transactions endpoint's payload
+  // is small and TSG's total transaction count is ~700 today, so the
+  // wider scan is cheap.
+  const tenYearsAgo = nowSec - 10 * 365 * 24 * 60 * 60;
   const txns = await glofox.transactions({
-    startUnix: String(oneYearAgo),
+    startUnix: String(tenYearsAgo),
     endUnix: String(nowSec),
   });
   await emit({ stage: "transactions", count: txns.length });
@@ -339,7 +348,18 @@ export async function runGlofoxSync(
       // (cancelled/draft txns or analytics-only stubs). The transactions
       // schema requires status NOT NULL, and these don't represent
       // resolved money anyway — drop them.
-      .filter((row) => row.status != null && row.status !== "");
+      //
+      // Wide history pulls (Batch F2, 2026-05-12) also surfaced rows
+      // with missing/zero amounts that NaN'd out to null during
+      // dollarsToCents. The schema requires amount_cents NOT NULL too,
+      // so apply the same drop rule.
+      .filter(
+        (row) =>
+          row.status != null &&
+          row.status !== "" &&
+          row.amount_cents != null &&
+          Number.isFinite(row.amount_cents),
+      );
 
     for (let i = 0; i < txnRows.length; i += CHUNK_SIZE) {
       const chunk = txnRows.slice(i, i + CHUNK_SIZE);
@@ -377,6 +397,113 @@ export async function runGlofoxSync(
     }
   }
 
+  // 8. Credits — per-member fan-out. Glofox's /2.0/credits?user_id=…
+  // returns the current credit packs for one user, including the
+  // realtime `available` count. We loop over every member, pull
+  // their packs, upsert into credit_packs, then update the member's
+  // membership_credits sum + tier (the active pack's
+  // `membership_name` is the operator-visible "what plan are they
+  // on right now", which differs from the stale member.membership_name
+  // that /2.0/members returns).
+  //
+  // Pacing: at TSG scale (~1238 members) this is ~2 minutes at the
+  // gentle 120 ms inter-call delay built into GlofoxClient.fetchAll.
+  // Live syncs complete inside the Netlify 5-min function timeout
+  // (`max_duration = 300` in netlify.toml).
+  let creditsWritten = 0;
+  {
+    const { data: memberRows } = await supabase
+      .from("members")
+      .select("id, glofox_id")
+      .eq("studio_id", studioId);
+    // Filter glofox_id-having members in JS (the unit-test mock
+    // doesn't implement .not(), and every member row should have a
+    // glofox_id anyway by design).
+    const memberList = (memberRows ?? []).filter(
+      (m): m is { id: string; glofox_id: string } => Boolean(m.glofox_id),
+    );
+
+    type CreditRow = ReturnType<typeof transformCredit>["row"] & {
+      member_id: string;
+    };
+    const allRows: CreditRow[] = [];
+    // sum + active-pack-name per member, applied to members table after
+    const perMember = new Map<
+      string,
+      { totalAvailable: number; activeName: string | null }
+    >();
+
+    // Emit a "credits" event up front so the streaming client knows
+    // the stage has started (the fan-out below takes ~2+ minutes for
+    // a studio at TSG's scale; without this, the response body goes
+    // silent and Node's default 5-min body timeout can fire).
+    await emit({ stage: "credits", count: 0 });
+
+    for (let i = 0; i < memberList.length; i++) {
+      const m = memberList[i];
+      const packs = await glofox.credits(m.glofox_id);
+      if (packs.length) {
+        for (const p of packs) {
+          const t = transformCredit(p, studioId);
+          allRows.push({ ...t.row, member_id: m.id });
+          if (t.isActive) {
+            const agg = perMember.get(m.id) ?? {
+              totalAvailable: 0,
+              activeName: null as string | null,
+            };
+            agg.totalAvailable += t.row.credits_remaining;
+            // Most recently purchased active pack wins as canonical
+            // tier (multi-pack edge case).
+            if (!agg.activeName) agg.activeName = t.membershipName ?? null;
+            perMember.set(m.id, agg);
+          }
+        }
+      }
+      // Keep the streaming connection alive: emit every 100 members
+      // (~12 seconds at the current pacing) so the client doesn't
+      // hit a body-timeout while the fan-out is in progress.
+      if ((i + 1) % 100 === 0) {
+        await emit({ stage: "credits", count: allRows.length });
+      }
+    }
+
+    await emit({ stage: "credits", count: allRows.length });
+
+    for (let i = 0; i < allRows.length; i += CHUNK_SIZE) {
+      const chunk = allRows.slice(i, i + CHUNK_SIZE);
+      const { error } = await supabase
+        .from("credit_packs")
+        .upsert(chunk, { onConflict: "studio_id,glofox_id" });
+      if (error) throw new Error(`Credit packs upsert failed: ${error.message}`);
+      creditsWritten += chunk.length;
+    }
+
+    // Update member rollups (membership_credits + membership_tier)
+    // from the active packs we just synced. Members with no packs
+    // get explicit 0 to clear stale balances. Tier is only
+    // overwritten when there's an active pack — otherwise we leave
+    // the existing tier (e.g. recurring "Monthly Unlimited") alone.
+    for (const m of memberList) {
+      const agg = perMember.get(m.id) ?? { totalAvailable: 0, activeName: null };
+      const update: { membership_credits: number; membership_tier?: string } = {
+        membership_credits: agg.totalAvailable,
+      };
+      if (agg.activeName) update.membership_tier = agg.activeName;
+      const { error } = await supabase
+        .from("members")
+        .update(update)
+        .eq("studio_id", studioId)
+        .eq("id", m.id);
+      if (error) {
+        // Don't throw — credit packs already landed. Surface for
+        // observability so a partial sync is visible.
+        console.error(
+          `member rollup update failed for ${m.id}: ${error.message}`,
+        );
+      }
+    }
+  }
+
   const counts: SyncCounts = {
     staff: staff.length,
     members: members.length,
@@ -385,6 +512,7 @@ export async function runGlofoxSync(
     bookings: bookingsWritten,
     transactions: txnsWritten,
     leads: leads.length,
+    credits: creditsWritten,
   };
 
   const synced = new Date().toISOString();

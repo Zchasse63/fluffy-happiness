@@ -126,6 +126,31 @@ export type GlofoxLead = {
   created_at: string;
 };
 
+// Wire format verified 2026-05-12 against live `/2.0/credits?user_id=…`.
+// Each row is one credit pack (4-pack, 10-pack, etc.). A user can have
+// multiple active packs; `available` is the realtime remaining count.
+export type GlofoxCredit = {
+  _id: string;
+  user_id: string;
+  membership_id: string;
+  /** "(Legacy) No Commitment Class Packs", "Sauna Sampler Three-Pack", etc. */
+  membership_name: string;
+  /** Total sessions in the pack at purchase time. */
+  num_sessions: number;
+  /** Realtime remaining sessions — source of truth for member balance. */
+  available: number;
+  active: boolean;
+  /** "programs" for class-pack credits, "appointments" for 1:1, etc. */
+  model: string;
+  /** Booking glofox_ids already used from this pack. */
+  bookings?: string[];
+  /** Unix seconds. */
+  start_date?: number;
+  /** Unix seconds. */
+  created?: number;
+  modified?: number;
+};
+
 export type Paged<T> = {
   data: T[];
   has_more?: boolean;

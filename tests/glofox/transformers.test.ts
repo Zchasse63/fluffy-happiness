@@ -4,6 +4,7 @@ import {
   parseGlofoxDate,
   transformBooking,
   transformClassInstance,
+  transformCredit,
   transformLead,
   transformMember,
   transformProgram,
@@ -527,6 +528,81 @@ describe("transformTransaction", () => {
       STUDIO,
     ).row;
     expect(row.type).toBe(expected);
+  });
+});
+
+describe("transformCredit", () => {
+  // Wire-shape fixture captured 2026-05-12 from live
+  // `/2.0/credits?user_id=…` (Alonso Martinez's 4-pack).
+  it("maps a real Glofox credit pack onto the credit_packs row shape", () => {
+    const out = transformCredit(
+      {
+        _id: "68c0e4c3046138482e0be24e",
+        user_id: "66b7f022e78b94509d0bfc71",
+        membership_id: "661dc87a22e9f2bf4a030c18",
+        membership_name: "(Legacy) No Commitment Class Packs",
+        num_sessions: 4,
+        available: 3,
+        active: true,
+        model: "programs",
+        bookings: ["68c0e4d949899b5edc0d486e"],
+        start_date: 1757390400,
+        created: 1757471939,
+      } as never,
+      STUDIO,
+    );
+    expect(out.row.studio_id).toBe(STUDIO);
+    expect(out.row.glofox_id).toBe("68c0e4c3046138482e0be24e");
+    expect(out.row.pack_type).toBe("(Legacy) No Commitment Class Packs");
+    expect(out.row.credits_total).toBe(4);
+    expect(out.row.credits_remaining).toBe(3);
+    // 1757471939 unix = 2025-09-10T03:58:59Z
+    expect(out.row.purchased_at).toBe(
+      new Date(1757471939 * 1000).toISOString(),
+    );
+    expect(out.memberGlofoxId).toBe("66b7f022e78b94509d0bfc71");
+    expect(out.isActive).toBe(true);
+    expect(out.membershipName).toBe("(Legacy) No Commitment Class Packs");
+  });
+
+  it("falls back across created → start_date → now() when timestamps are missing", () => {
+    // The transformer reduces to unix-seconds precision, so an exact
+    // ms-precision comparison against Date.now() can be off by ≤1s.
+    const beforeSec = Math.floor(Date.now() / 1000);
+    const out = transformCredit(
+      {
+        _id: "p1",
+        user_id: "u1",
+        membership_id: "m1",
+        membership_name: "Pack",
+        num_sessions: 10,
+        available: 10,
+        active: false,
+        model: "programs",
+      } as never,
+      STUDIO,
+    );
+    const purchasedSec = Math.floor(
+      new Date(out.row.purchased_at).getTime() / 1000,
+    );
+    expect(purchasedSec).toBeGreaterThanOrEqual(beforeSec);
+    expect(out.isActive).toBe(false);
+  });
+
+  it("defaults pack_type to 'Class Pack' when Glofox omits membership_name", () => {
+    const out = transformCredit(
+      {
+        _id: "p2",
+        user_id: "u1",
+        membership_id: "m1",
+        num_sessions: 4,
+        available: 4,
+        active: true,
+        model: "programs",
+      } as never,
+      STUDIO,
+    );
+    expect(out.row.pack_type).toBe("Class Pack");
   });
 });
 
